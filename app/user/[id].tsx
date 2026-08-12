@@ -55,7 +55,7 @@ export default function UserProfileScreen() {
           </View>
         </View>
 
-        {!isOwnProfile && profile.isFollowing !== null ? (
+        {!isOwnProfile && profile.isFollowing !== undefined ? (
           <TouchableOpacity
             style={[styles.followButton, profile.isFollowing && styles.followButtonActive]}
             onPress={() => toggleFollow.mutate(profile.isFollowing ?? false)}

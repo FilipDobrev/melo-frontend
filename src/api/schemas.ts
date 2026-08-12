@@ -56,7 +56,9 @@ export type Me = z.infer<typeof meSchema>;
 export const userProfileSchema = publicUserSchema.extend({
   followerCount: z.number(),
   followingCount: z.number(),
-  isFollowing: z.boolean().nullable(),
+  // The API omits this key entirely for anonymous viewers and for your own
+  // profile, rather than sending a misleading false.
+  isFollowing: z.boolean().optional(),
 });
 export type UserProfile = z.infer<typeof userProfileSchema>;
 
