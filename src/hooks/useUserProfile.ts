@@ -53,6 +53,8 @@ export function useToggleFollow(userId: string) {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['userProfile', userId] });
+      // Following/unfollowing changes whose posts show up in the feed.
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
     },
   });
 }

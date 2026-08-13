@@ -1,5 +1,4 @@
-import { Link } from 'expo-router';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { useFeed } from '../../src/hooks/useFeed';
 import { PostCard } from '../../src/components/PostCard';
 import { EmptyState, ErrorState, LoadingState } from '../../src/components/EmptyState';
@@ -14,11 +13,6 @@ export default function FeedScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Feed</Text>
-        <Link href="/post/new" asChild>
-          <TouchableOpacity style={styles.newButton}>
-            <Text style={styles.newButtonText}>+ Post</Text>
-          </TouchableOpacity>
-        </Link>
       </View>
 
       {isLoading ? (
@@ -69,16 +63,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
     color: '#2B2620',
-  },
-  newButton: {
-    backgroundColor: '#B5541A',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  newButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
   },
   list: {
     padding: 16,

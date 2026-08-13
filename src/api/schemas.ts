@@ -69,6 +69,13 @@ export const authResultSchema = z.object({
 });
 export type AuthResult = z.infer<typeof authResultSchema>;
 
+// POST /auth/refresh -> { accessToken, refreshToken } only (no user).
+export const refreshResultSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+});
+export type RefreshResult = z.infer<typeof refreshResultSchema>;
+
 export const categorySchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -96,8 +103,16 @@ export const nutritionSchema = z.object({
 });
 export type Nutrition = z.infer<typeof nutritionSchema>;
 
+// Categories nested inside a recipe carry only slug and name. The full
+// category (with id) comes from GET /categories.
+export const recipeCategorySchema = z.object({
+  slug: z.string(),
+  name: z.string(),
+});
+export type RecipeCategory = z.infer<typeof recipeCategorySchema>;
+
 export const recipeIngredientSchema = z.object({
-  productId: z.string(),
+  id: z.string(),
   quantity: z.number(),
   unit: unitSchema,
   product: productSchema,
@@ -105,13 +120,16 @@ export const recipeIngredientSchema = z.object({
 export type RecipeIngredient = z.infer<typeof recipeIngredientSchema>;
 
 // GET /recipes - list item (no ingredients/instructions).
+// `updatedAt` is present on /recipes and /users/:userId/recipes but absent
+// on /users/me/cookbook and collection recipe lists, so it's optional here.
 export const recipeSummarySchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string(),
   createdAt: z.string(),
-  author: publicUserSchema,
-  categories: z.array(categorySchema),
+  updatedAt: z.string().optional(),
+  owner: publicUserSchema,
+  categories: z.array(recipeCategorySchema),
 });
 export type RecipeSummary = z.infer<typeof recipeSummarySchema>;
 
@@ -120,7 +138,7 @@ export const recipeDetailSchema = recipeSummarySchema.extend({
   instructions: z.string(),
   ingredients: z.array(recipeIngredientSchema),
   nutrition: nutritionSchema,
-  isSaved: z.boolean().nullable(),
+  isSaved: z.boolean(),
 });
 export type RecipeDetail = z.infer<typeof recipeDetailSchema>;
 
@@ -128,6 +146,7 @@ const recipeRefSchema = z.object({
   id: z.string(),
   title: z.string(),
   nutrition: nutritionSchema,
+  isSaved: z.boolean(),
 });
 
 export const postImageSchema = z.object({
@@ -142,7 +161,7 @@ export const postSchema = z.object({
   createdAt: z.string(),
   author: publicUserSchema,
   images: z.array(postImageSchema),
-  recipe: recipeRefSchema.nullable(),
+  recipe: recipeRefSchema,
   reactions: z.object({
     total: z.number(),
     byEmoji: z.record(z.string(), z.number()),
@@ -159,6 +178,15 @@ export const commentSchema = z.object({
   author: publicUserSchema,
 });
 export type Comment = z.infer<typeof commentSchema>;
+
+// GET/POST /users/me/collections
+export const collectionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  createdAt: z.string(),
+  recipeCount: z.number(),
+});
+export type Collection = z.infer<typeof collectionSchema>;
 
 export const uploadUrlSchema = z.object({
   uploadUrl: z.string(),

@@ -32,6 +32,10 @@ export function useToggleSaveRecipe(recipeId: string) {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['recipe', recipeId] });
       queryClient.invalidateQueries({ queryKey: ['cookbook'] });
+      // Post cards elsewhere show this recipe's `isSaved` too.
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['post'] });
+      queryClient.invalidateQueries({ queryKey: ['userPosts'] });
     },
   });
 }

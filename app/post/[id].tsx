@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { usePost, useComments, useAddComment, useDeleteComment, useSetReaction, useDeletePost } from '../../src/hooks/usePost';
 import { useAuth } from '../../src/context/AuthContext';
@@ -10,7 +10,7 @@ import { ErrorState, LoadingState } from '../../src/components/EmptyState';
 import { ApiError } from '../../src/api/client';
 
 export default function PostDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, focus } = useLocalSearchParams<{ id: string; focus?: string }>();
   const router = useRouter();
   const { user } = useAuth();
 
@@ -22,6 +22,14 @@ export default function PostDetailScreen() {
   const deletePost = useDeletePost();
 
   const [commentText, setCommentText] = useState('');
+  const scrollViewRef = useRef<ScrollView>(null);
+  const commentInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (focus !== 'comment' || postQuery.isLoading) return;
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+    commentInputRef.current?.focus();
+  }, [focus, postQuery.isLoading]);
 
   if (postQuery.isLoading) {
     return <LoadingState />;
@@ -51,7 +59,7 @@ export default function PostDetailScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView ref={scrollViewRef} style={styles.container}>
       <View style={styles.header}>
         <Link href={{ pathname: '/user/[id]', params: { id: post.author.id } }} asChild>
           <TouchableOpacity style={styles.authorRow}>
@@ -76,13 +84,11 @@ export default function PostDetailScreen() {
 
       {post.caption ? <Text style={styles.caption}>{post.caption}</Text> : null}
 
-      {post.recipe ? (
-        <Link href={{ pathname: '/recipe/[id]', params: { id: post.recipe.id } }} asChild>
-          <TouchableOpacity style={styles.recipeChip}>
-            <Text style={styles.recipeChipText}>Recipe: {post.recipe.title}</Text>
-          </TouchableOpacity>
-        </Link>
-      ) : null}
+      <Link href={{ pathname: '/recipe/[id]', params: { id: post.recipe.id } }} asChild>
+        <TouchableOpacity style={styles.recipeChip}>
+          <Text style={styles.recipeChipText}>Recipe: {post.recipe.title}</Text>
+        </TouchableOpacity>
+      </Link>
 
       <View style={styles.reactionsSection}>
         <EmojiReactionRow reactions={post.reactions} onSelect={(emoji) => setReaction.mutate(emoji)} />
@@ -127,6 +133,7 @@ export default function PostDetailScreen() {
 
       <View style={styles.commentInputRow}>
         <TextInput
+          ref={commentInputRef}
           style={styles.commentInput}
           placeholder="Add a comment..."
           value={commentText}

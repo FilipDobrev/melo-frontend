@@ -16,13 +16,16 @@ export type CreateRecipeInput = {
   categorySlugs: string[];
 };
 
+export type RecipeSort = 'newest' | 'oldest' | 'popular';
+
 export async function searchRecipes(
-  params: PageParams & { search?: string; categorySlugs?: string[] },
+  params: PageParams & { search?: string; categorySlugs?: string[]; sort?: RecipeSort },
 ): Promise<Paginated<RecipeSummary>> {
   return apiRequest('/recipes', paginated(recipeSummarySchema), {
     query: {
       search: params.search,
       categorySlugs: params.categorySlugs?.length ? params.categorySlugs.join(',') : undefined,
+      sort: params.sort,
       cursor: params.cursor,
       limit: params.limit,
     },

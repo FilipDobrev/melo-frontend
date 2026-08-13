@@ -27,6 +27,7 @@ export default function RootLayout() {
             <Stack.Screen name="recipe/[id]" options={{ title: 'Recipe' }} />
             <Stack.Screen name="recipe/new" options={{ title: 'New Recipe', presentation: 'modal' }} />
             <Stack.Screen name="user/[id]" options={{ title: 'Profile' }} />
+            <Stack.Screen name="collection/[id]" options={{ title: 'Collection' }} />
           </Stack>
         </AuthProvider>
       </QueryClientProvider>

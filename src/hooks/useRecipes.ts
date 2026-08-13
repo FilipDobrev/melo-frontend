@@ -1,10 +1,11 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { searchRecipes, getRecipe } from '../api/recipes.api';
+import { searchRecipes, getRecipe, type RecipeSort } from '../api/recipes.api';
 
-export function useRecipes(search: string, categorySlugs: string[]) {
+export function useRecipes(search: string, categorySlugs: string[], sort?: RecipeSort) {
   return useInfiniteQuery({
-    queryKey: ['recipes', search, categorySlugs],
-    queryFn: ({ pageParam }) => searchRecipes({ search: search || undefined, categorySlugs, cursor: pageParam }),
+    queryKey: ['recipes', search, categorySlugs, sort],
+    queryFn: ({ pageParam }) =>
+      searchRecipes({ search: search || undefined, categorySlugs, sort, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });

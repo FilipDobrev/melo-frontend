@@ -3,13 +3,11 @@
 // Screens read `user`/`isLoading` to decide what to render; they never touch
 // tokens directly.
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { apiRequest } from '../api/client';
-import { authResultSchema } from '../api/schemas';
+import { refreshAccessToken, setOnSessionExpired } from '../api/client';
 import * as authApi from '../api/auth.api';
 import { getMe, updateMe as updateMeApi } from '../api/users.api';
 import type { Me } from '../api/schemas';
-import { getRefreshToken, setTokens } from '../lib/tokenStore';
-import { setOnSessionExpired } from '../api/client';
+import { getAccessToken, getRefreshToken, clearTokens } from '../lib/tokenStore';
 
 type AuthContextValue = {
   user: Me | null;
@@ -34,25 +32,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function restoreSession() {
-      const refreshToken = await getRefreshToken();
-      if (!refreshToken) {
-        setIsLoading(false);
-        return;
+      // A remount (not a hard reload) may still hold a valid access token in
+      // memory - trust it instead of rotating the refresh token again.
+      if (!getAccessToken()) {
+        const refreshToken = await getRefreshToken();
+        if (!refreshToken) {
+          setIsLoading(false);
+          return;
+        }
+
+        try {
+          // Shared single-flight refresh: if another caller (e.g. a second
+          // effect invocation under StrictMode, or a 401 elsewhere) is
+          // already refreshing, we await that same promise instead of
+          // rotating the single-use refresh token a second time.
+          await refreshAccessToken();
+        } catch {
+          // Refresh token expired or revoked; stay logged out.
+          await clearTokens();
+          if (!cancelled) {
+            setIsLoading(false);
+          }
+          return;
+        }
       }
 
       try {
-        const result = await apiRequest('/auth/refresh', authResultSchema, {
-          method: 'POST',
-          body: { refreshToken },
-          skipAuth: true,
-        });
-        await setTokens(result.accessToken, result.refreshToken);
         const me = await getMe();
         if (!cancelled) {
           setUser(me);
         }
       } catch {
-        // Refresh token expired or revoked; stay logged out.
+        // Access token turned out to be invalid; apiRequest's own 401 handling
+        // already attempted a refresh and clears the session on genuine rejection.
       } finally {
         if (!cancelled) {
           setIsLoading(false);

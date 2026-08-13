@@ -7,7 +7,9 @@ import { useCategories } from '../../src/hooks/useCategories';
 import { RecipeCard } from '../../src/components/RecipeCard';
 import { Avatar } from '../../src/components/Avatar';
 import { EmptyState, ErrorState, LoadingState } from '../../src/components/EmptyState';
+import { FilterButton, FilterSheet } from '../../src/components/FilterSheet';
 import { ApiError } from '../../src/api/client';
+import type { RecipeSort } from '../../src/api/recipes.api';
 
 type Mode = 'recipes' | 'users';
 
@@ -15,15 +17,22 @@ export default function DiscoverScreen() {
   const [mode, setMode] = useState<Mode>('recipes');
   const [search, setSearch] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [sort, setSort] = useState<RecipeSort>('newest');
+  const [isFilterVisible, setIsFilterVisible] = useState(false);
 
   const categoriesQuery = useCategories();
-  const recipesQuery = useRecipes(search, selectedCategories);
+  const recipesQuery = useRecipes(search, selectedCategories, sort);
   const usersQuery = useUserSearch(search);
 
   function toggleCategory(slug: string) {
     setSelectedCategories((current) =>
       current.includes(slug) ? current.filter((s) => s !== slug) : [...current, slug],
     );
+  }
+
+  function clearFilters() {
+    setSelectedCategories([]);
+    setSort('newest');
   }
 
   const recipes = recipesQuery.data?.pages.flatMap((page) => page.items) ?? [];
@@ -46,24 +55,8 @@ export default function DiscoverScreen() {
         autoCapitalize="none"
       />
 
-      {mode === 'recipes' && categoriesQuery.data && categoriesQuery.data.length > 0 ? (
-        <FlatList
-          horizontal
-          data={categoriesQuery.data}
-          keyExtractor={(category) => category.id}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipRow}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[styles.chip, selectedCategories.includes(item.slug) && styles.chipActive]}
-              onPress={() => toggleCategory(item.slug)}
-            >
-              <Text style={[styles.chipText, selectedCategories.includes(item.slug) && styles.chipTextActive]}>
-                {item.name}
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
+      {mode === 'recipes' ? (
+        <FilterButton activeCount={selectedCategories.length} onPress={() => setIsFilterVisible(true)} />
       ) : null}
 
       {mode === 'recipes' ? (
@@ -117,6 +110,17 @@ export default function DiscoverScreen() {
           )}
         />
       )}
+
+      <FilterSheet
+        visible={isFilterVisible}
+        onClose={() => setIsFilterVisible(false)}
+        categories={categoriesQuery.data ?? []}
+        selectedCategories={selectedCategories}
+        onToggleCategory={toggleCategory}
+        onClearAll={clearFilters}
+        sort={sort}
+        onChangeSort={setSort}
+      />
     </View>
   );
 }
@@ -172,27 +176,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     backgroundColor: '#FFFFFF',
     marginBottom: 10,
-  },
-  chipRow: {
-    gap: 8,
-    paddingBottom: 12,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#F5F0E8',
-  },
-  chipActive: {
-    backgroundColor: '#B5541A',
-  },
-  chipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B6155',
-  },
-  chipTextActive: {
-    color: '#FFFFFF',
   },
   list: {
     paddingBottom: 24,

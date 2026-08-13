@@ -1,6 +1,7 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { getPost, getComments, addComment, deleteComment, setReaction, removeReaction, deletePost } from '../api/posts.api';
 import type { Post } from '../api/schemas';
+import type { Paginated } from '../api/pagination';
 
 export function usePost(postId: string) {
   return useQuery({
@@ -25,6 +26,8 @@ export function useAddComment(postId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['comments', postId] });
       queryClient.invalidateQueries({ queryKey: ['post', postId] });
+      // Feed cards show a comment count that must reflect the new comment too.
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
     },
   });
 }
@@ -36,6 +39,8 @@ export function useDeleteComment(postId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['comments', postId] });
       queryClient.invalidateQueries({ queryKey: ['post', postId] });
+      // Feed cards show a comment count that must reflect the deletion too.
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
     },
   });
 }
@@ -50,6 +55,8 @@ export function useDeletePost() {
   });
 }
 
+type FeedData = InfiniteData<Paginated<Post>>;
+
 export function useSetReaction(postId: string) {
   const queryClient = useQueryClient();
 
@@ -57,17 +64,23 @@ export function useSetReaction(postId: string) {
     mutationFn: (emoji: string | null) => (emoji ? setReaction(postId, emoji) : removeReaction(postId)),
     onMutate: async (emoji) => {
       await queryClient.cancelQueries({ queryKey: ['post', postId] });
-      const previous = queryClient.getQueryData<Post>(['post', postId]);
-      queryClient.setQueryData<Post>(['post', postId], (old) => {
-        if (!old) return old;
-        return applyOptimisticReaction(old, emoji);
-      });
-      return { previous };
+      await queryClient.cancelQueries({ queryKey: ['feed'] });
+
+      const previousPost = queryClient.getQueryData<Post>(['post', postId]);
+      queryClient.setQueryData<Post>(['post', postId], (old) => (old ? applyOptimisticReaction(old, emoji) : old));
+
+      const previousFeed = queryClient.getQueriesData<FeedData>({ queryKey: ['feed'] });
+      queryClient.setQueriesData<FeedData>({ queryKey: ['feed'] }, (old) => applyOptimisticReactionToFeed(old, postId, emoji));
+
+      return { previousPost, previousFeed };
     },
     onError: (_err, _emoji, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(['post', postId], context.previous);
+      if (context?.previousPost) {
+        queryClient.setQueryData(['post', postId], context.previousPost);
       }
+      context?.previousFeed?.forEach(([key, data]) => {
+        queryClient.setQueryData(key, data);
+      });
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['post', postId] });
@@ -76,7 +89,18 @@ export function useSetReaction(postId: string) {
   });
 }
 
-function applyOptimisticReaction(post: Post, emoji: string | null): Post {
+function applyOptimisticReactionToFeed(data: FeedData | undefined, postId: string, emoji: string | null): FeedData | undefined {
+  if (!data) return data;
+  return {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      items: page.items.map((post) => (post.id === postId ? applyOptimisticReaction(post, emoji) : post)),
+    })),
+  };
+}
+
+export function applyOptimisticReaction(post: Post, emoji: string | null): Post {
   const byEmoji = { ...post.reactions.byEmoji };
   let total = post.reactions.total;
 

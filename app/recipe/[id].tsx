@@ -29,8 +29,8 @@ export default function RecipeDetailScreen() {
   }
 
   const recipe = recipeQuery.data;
-  const isOwner = user?.id === recipe.author.id;
-  const isSaved = recipe.isSaved ?? false;
+  const isOwner = user?.id === recipe.owner.id;
+  const isSaved = recipe.isSaved;
 
   async function handleDelete() {
     await deleteRecipe(recipe.id);
@@ -41,16 +41,16 @@ export default function RecipeDetailScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>{recipe.title}</Text>
 
-      <Link href={{ pathname: '/user/[id]', params: { id: recipe.author.id } }} asChild>
+      <Link href={{ pathname: '/user/[id]', params: { id: recipe.owner.id } }} asChild>
         <TouchableOpacity>
-          <Text style={styles.author}>by {recipe.author.username}</Text>
+          <Text style={styles.author}>by {recipe.owner.username}</Text>
         </TouchableOpacity>
       </Link>
 
       {recipe.categories.length > 0 ? (
         <View style={styles.categoryRow}>
           {recipe.categories.map((category) => (
-            <View key={category.id} style={styles.categoryChip}>
+            <View key={category.slug} style={styles.categoryChip}>
               <Text style={styles.categoryText}>{category.name}</Text>
             </View>
           ))}
@@ -60,6 +60,10 @@ export default function RecipeDetailScreen() {
       <Text style={styles.description}>{recipe.description}</Text>
 
       <NutritionBar nutrition={recipe.nutrition} />
+
+      <TouchableOpacity style={styles.cookButton} onPress={() => router.push({ pathname: '/cook/[recipeId]', params: { recipeId: recipe.id } })}>
+        <Text style={styles.cookButtonText}>Cook this</Text>
+      </TouchableOpacity>
 
       {!isOwner ? (
         <TouchableOpacity
@@ -86,7 +90,7 @@ export default function RecipeDetailScreen() {
 
       <Text style={styles.sectionTitle}>Ingredients</Text>
       {recipe.ingredients.map((ingredient) => (
-        <View key={ingredient.productId} style={styles.ingredientRow}>
+        <View key={ingredient.id} style={styles.ingredientRow}>
           <Text style={styles.ingredientText}>
             {ingredient.quantity} {formatUnit(ingredient.unit)} {ingredient.product.name}
           </Text>
@@ -140,6 +144,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#2B2620',
     marginBottom: 16,
+  },
+  cookButton: {
+    marginTop: 16,
+    backgroundColor: '#2B2620',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  cookButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   saveButton: {
     marginTop: 16,

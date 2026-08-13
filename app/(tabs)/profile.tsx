@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Link } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import { Avatar } from '../../src/components/Avatar';
 import { ApiError } from '../../src/api/client';
@@ -39,6 +40,12 @@ export default function ProfileScreen() {
       <View style={styles.avatarRow}>
         <Avatar uri={profileImage || null} username={username || user.username} size="large" />
       </View>
+
+      <Link href={{ pathname: '/user/[id]', params: { id: user.id } }} asChild>
+        <TouchableOpacity style={styles.viewProfileButton}>
+          <Text style={styles.viewProfileText}>View my posts & recipes</Text>
+        </TouchableOpacity>
+      </Link>
 
       <Text style={styles.label}>Username</Text>
       <TextInput style={styles.input} value={username} onChangeText={setUsername} autoCapitalize="none" />
@@ -87,6 +94,16 @@ const styles = StyleSheet.create({
   avatarRow: {
     alignItems: 'center',
     marginBottom: 20,
+  },
+  viewProfileButton: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  viewProfileText: {
+    color: '#B5541A',
+    fontWeight: '600',
+    fontSize: 14,
   },
   label: {
     fontSize: 13,

@@ -8,7 +8,7 @@
 import type { ZodTypeAny, z } from 'zod';
 import { API_URL } from '../lib/env';
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from '../lib/tokenStore';
-import { authResultSchema, errorResponseSchema } from './schemas';
+import { errorResponseSchema, refreshResultSchema } from './schemas';
 
 export class ApiError extends Error {
   constructor(
@@ -34,7 +34,7 @@ export function setOnSessionExpired(handler: () => void): void {
 // instead of starting its own.
 let refreshPromise: Promise<string> | null = null;
 
-async function refreshAccessToken(): Promise<string> {
+export async function refreshAccessToken(): Promise<string> {
   if (refreshPromise) {
     return refreshPromise;
   }
@@ -56,7 +56,7 @@ async function refreshAccessToken(): Promise<string> {
     }
 
     const json: unknown = await response.json();
-    const result = authResultSchema.parse(json);
+    const result = refreshResultSchema.parse(json);
     await setTokens(result.accessToken, result.refreshToken);
     return result.accessToken;
   })();

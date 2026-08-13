@@ -2,24 +2,37 @@ import { Link } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { RecipeSummary } from '../api/schemas';
 
-export function RecipeCard({ recipe }: { recipe: RecipeSummary }) {
+type Props = {
+  recipe: RecipeSummary;
+  /** When provided, renders a small "Add to collection" action on the card. */
+  onAddToCollection?: () => void;
+};
+
+export function RecipeCard({ recipe, onAddToCollection }: Props) {
   return (
-    <Link href={{ pathname: '/recipe/[id]', params: { id: recipe.id } }} asChild>
-      <TouchableOpacity style={styles.card}>
-        <Text style={styles.title} numberOfLines={1}>
-          {recipe.title}
-        </Text>
-        <Text style={styles.description} numberOfLines={2}>
-          {recipe.description}
-        </Text>
-        <View style={styles.footer}>
-          <Text style={styles.author}>by {recipe.author.username}</Text>
-          {recipe.categories.length > 0 ? (
-            <Text style={styles.category}>{recipe.categories[0]?.name}</Text>
-          ) : null}
-        </View>
-      </TouchableOpacity>
-    </Link>
+    <View style={styles.card}>
+      <Link href={{ pathname: '/recipe/[id]', params: { id: recipe.id } }} asChild>
+        <TouchableOpacity>
+          <Text style={styles.title} numberOfLines={1}>
+            {recipe.title}
+          </Text>
+          <Text style={styles.description} numberOfLines={2}>
+            {recipe.description}
+          </Text>
+          <View style={styles.footer}>
+            <Text style={styles.author}>by {recipe.owner.username}</Text>
+            {recipe.categories.length > 0 ? (
+              <Text style={styles.category}>{recipe.categories[0]?.name}</Text>
+            ) : null}
+          </View>
+        </TouchableOpacity>
+      </Link>
+      {onAddToCollection ? (
+        <TouchableOpacity style={styles.addButton} onPress={onAddToCollection}>
+          <Text style={styles.addButtonText}>+ Add to collection</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
   );
 }
 
@@ -52,6 +65,15 @@ const styles = StyleSheet.create({
     color: '#8A7F70',
   },
   category: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#B5541A',
+  },
+  addButton: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+  },
+  addButtonText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#B5541A',

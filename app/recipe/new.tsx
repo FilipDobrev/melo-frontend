@@ -40,7 +40,7 @@ export default function RecipeFormScreen() {
       setInstructions(recipe.instructions);
       setIngredients(
         recipe.ingredients.map((ingredient) => ({
-          productId: ingredient.productId,
+          productId: ingredient.product.id,
           quantity: ingredient.quantity,
           unit: ingredient.unit,
           productName: ingredient.product.name,

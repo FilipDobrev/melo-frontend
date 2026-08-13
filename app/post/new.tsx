@@ -1,27 +1,38 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getUploadUrl, uploadImageToStorage } from '../../src/api/posts.api';
 import { useCreatePost } from '../../src/hooks/useCreatePost';
-import { useUserRecipes } from '../../src/hooks/useUserProfile';
-import { useAuth } from '../../src/context/AuthContext';
+import { useRecipe } from '../../src/hooks/useRecipes';
 import { ApiError } from '../../src/api/client';
+import { LoadingState } from '../../src/components/EmptyState';
 
 type PickedImage = { uri: string; contentType: string };
 
 export default function NewPostScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { recipeId } = useLocalSearchParams<{ recipeId?: string }>();
   const createPost = useCreatePost();
-  const ownRecipes = useUserRecipes(user?.id ?? '');
+  const recipeQuery = useRecipe(recipeId ?? '');
 
   const [images, setImages] = useState<PickedImage[]>([]);
   const [caption, setCaption] = useState('');
-  const [recipeId, setRecipeId] = useState<string | undefined>(undefined);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Every post documents cooking a specific recipe, so the composer is
+  // unreachable without one: send the user to pick a recipe instead.
+  useEffect(() => {
+    if (!recipeId) {
+      router.replace('/post/pick');
+    }
+  }, [recipeId, router]);
+
+  if (!recipeId) {
+    return <LoadingState />;
+  }
 
   async function pickImages() {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -70,10 +81,16 @@ export default function NewPostScreen() {
     }
   }
 
-  const recipes = ownRecipes.data?.pages.flatMap((page) => page.items) ?? [];
-
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Stack.Screen options={{ title: 'New Post' }} />
+      <Text style={styles.label}>Recipe</Text>
+      <View style={styles.recipeChip}>
+        <Text style={styles.recipeChipText} numberOfLines={1}>
+          {recipeQuery.data?.title ?? 'Loading recipe...'}
+        </Text>
+      </View>
+
       <Text style={styles.label}>Images</Text>
       <View style={styles.imageRow}>
         {images.map((image, index) => (
@@ -92,25 +109,6 @@ export default function NewPostScreen() {
         onChangeText={setCaption}
         multiline
       />
-
-      {recipes.length > 0 ? (
-        <>
-          <Text style={styles.label}>Attach a recipe (optional)</Text>
-          <View style={styles.recipeList}>
-            {recipes.map((recipe) => (
-              <TouchableOpacity
-                key={recipe.id}
-                style={[styles.recipeOption, recipeId === recipe.id && styles.recipeOptionActive]}
-                onPress={() => setRecipeId(recipeId === recipe.id ? undefined : recipe.id)}
-              >
-                <Text style={[styles.recipeOptionText, recipeId === recipe.id && styles.recipeOptionTextActive]}>
-                  {recipe.title}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </>
-      ) : null}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -176,24 +174,17 @@ const styles = StyleSheet.create({
     minHeight: 60,
     textAlignVertical: 'top',
   },
-  recipeList: {
-    gap: 8,
-  },
-  recipeOption: {
+  recipeChip: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 10,
     backgroundColor: '#F5F0E8',
+    maxWidth: '100%',
   },
-  recipeOptionActive: {
-    backgroundColor: '#B5541A',
-  },
-  recipeOptionText: {
+  recipeChipText: {
     color: '#2B2620',
     fontWeight: '600',
-  },
-  recipeOptionTextActive: {
-    color: '#FFFFFF',
   },
   error: {
     color: '#C0392B',
