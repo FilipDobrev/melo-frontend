@@ -1,8 +1,17 @@
 import { Image } from 'expo-image';
 import React, { useRef } from 'react';
-import { FlatList, NativeScrollEvent, NativeSyntheticEvent, Pressable, StyleSheet, View } from 'react-native';
+import {
+  FlatList,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { colors, radius, space } from '../../theme/theme';
 import { useContentWidth } from '../../theme/layout';
+import { IconButton } from '../../ui/IconButton';
 import { Readout } from '../../ui/Text';
 
 interface PostImage {
@@ -23,6 +32,7 @@ const DOUBLE_TAP_MS = 280;
 export function PostImageCarousel({ images, index, onIndexChange, onDoubleTap }: PostImageCarouselProps) {
   const width = useContentWidth();
   const lastTapAtRef = useRef(0);
+  const listRef = useRef<FlatList<PostImage>>(null);
 
   function handleMomentumScrollEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {
     const nextIndex = Math.round(event.nativeEvent.contentOffset.x / width);
@@ -39,15 +49,25 @@ export function PostImageCarousel({ images, index, onIndexChange, onDoubleTap }:
     }
   }
 
+  function goTo(nextIndex: number) {
+    const clampedIndex = Math.max(0, Math.min(nextIndex, images.length - 1));
+    listRef.current?.scrollToIndex({ index: clampedIndex, animated: true });
+    // onMomentumScrollEnd doesn't fire reliably for programmatic scrolls on web,
+    // so update the dots/counter immediately rather than waiting for it.
+    onIndexChange(clampedIndex);
+  }
+
   return (
     <View>
       <FlatList
+        ref={listRef}
         data={images}
         keyExtractor={(image) => image.id}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={handleMomentumScrollEnd}
+        getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
         renderItem={({ item }) => (
           <Pressable onPress={handlePress} accessibilityRole="image" accessibilityLabel="Post photo">
             <Image
@@ -62,6 +82,35 @@ export function PostImageCarousel({ images, index, onIndexChange, onDoubleTap }:
           </Pressable>
         )}
       />
+      {/* Arrows are web-only: touch users swipe (arrows would just be clutter over
+          the photo), but a mouse has no swipe gesture, so it needs an alternative.
+          Each wrapper spans the full height and is box-none so only the button
+          itself takes clicks - otherwise it would swallow taps in a strip down
+          the side of the photo and break double-tap-to-react there. */}
+      {Platform.OS === 'web' && images.length > 1 && index > 0 && (
+        <View style={[styles.arrowWrap, styles.arrowLeft]} pointerEvents="box-none">
+          <View style={styles.arrowBackground}>
+            <IconButton
+              name="chevron-left"
+              onPress={() => goTo(index - 1)}
+              label="Previous photo"
+              color="textInverse"
+            />
+          </View>
+        </View>
+      )}
+      {Platform.OS === 'web' && images.length > 1 && index < images.length - 1 && (
+        <View style={[styles.arrowWrap, styles.arrowRight]} pointerEvents="box-none">
+          <View style={styles.arrowBackground}>
+            <IconButton
+              name="chevron-right"
+              onPress={() => goTo(index + 1)}
+              label="Next photo"
+              color="textInverse"
+            />
+          </View>
+        </View>
+      )}
       {images.length > 1 && (
         <View style={styles.counterPill}>
           <Readout variant="readoutSm" color="textInverse">
@@ -89,6 +138,22 @@ export function PostImageCarousel({ images, index, onIndexChange, onDoubleTap }:
 }
 
 const styles = StyleSheet.create({
+  arrowWrap: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  arrowLeft: {
+    left: space.sm,
+  },
+  arrowRight: {
+    right: space.sm,
+  },
+  arrowBackground: {
+    backgroundColor: colors.scrimSoft,
+    borderRadius: radius.pill,
+  },
   counterPill: {
     position: 'absolute',
     top: space.md,

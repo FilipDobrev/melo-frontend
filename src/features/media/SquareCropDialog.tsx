@@ -48,9 +48,11 @@ interface Geometry {
 }
 
 const MIN_ZOOM = 1;
-const MAX_ZOOM = 3;
 const THUMB_SIZE = 22;
 const CARD_MAX_WIDTH = 340;
+// Float error on the dispW/dispH vs viewport comparison used to decide
+// whether the square is fully covered (see handleConfirm).
+const COVER_EPSILON = 0.5;
 
 function clamp(value: number, max: number): number {
   if (max <= 0) return 0;
@@ -61,16 +63,22 @@ function clampRatio(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-// At zoom 1 the short edge of the source exactly fills the viewport, so
-// baseScale anchors the whole range; zoom then scales up from there.
+// At zoom 1 the whole source fits inside the viewport (letterboxed unless
+// square), so fitScale anchors the whole range; zoom then scales up from
+// there until the short edge covers the viewport and beyond.
 function computeGeometry(srcW: number, srcH: number, viewport: number, zoom: number): Geometry {
-  const baseScale = viewport / Math.min(srcW, srcH);
-  const scale = baseScale * zoom;
+  const fitScale = viewport / Math.max(srcW, srcH);
+  const scale = fitScale * zoom;
   const dispW = srcW * scale;
   const dispH = srcH * scale;
   const maxPanX = Math.max(0, (dispW - viewport) / 2);
   const maxPanY = Math.max(0, (dispH - viewport) / 2);
   return { scale, dispW, dispH, maxPanX, maxPanY };
+}
+
+/** Zoom at which the short edge of the source exactly fills the viewport. */
+function coverZoomFor(srcW: number, srcH: number): number {
+  return Math.max(srcW, srcH) / Math.min(srcW, srcH);
 }
 
 export function SquareCropDialog({
@@ -95,6 +103,18 @@ export function SquareCropDialog({
     [srcSize, viewport, zoom],
   );
 
+  // The zoom at which the photo exactly fills the square, and therefore the
+  // top of the zoom range, depend on the source's aspect ratio, so unlike
+  // MIN_ZOOM they can't be module constants.
+  const coverZoom = srcSize ? coverZoomFor(srcSize.width, srcSize.height) : MIN_ZOOM;
+  const maxZoom = coverZoom * 3;
+
+  // True once the photo fully covers the square (no letterbox bars). Used
+  // both for the hint text and to decide whether confirming can bake a crop.
+  const isCovered = geometry
+    ? geometry.dispW >= viewport - COVER_EPSILON && geometry.dispH >= viewport - COVER_EPSILON
+    : false;
+
   // PanResponder handlers are created once (see refs below) and must read
   // current values through a ref rather than closing over render state.
   const latestRef = useRef({
@@ -104,6 +124,7 @@ export function SquareCropDialog({
     srcW: srcSize?.width ?? 0,
     srcH: srcSize?.height ?? 0,
     viewport,
+    maxZoom,
   });
   latestRef.current = {
     pan,
@@ -112,6 +133,7 @@ export function SquareCropDialog({
     srcW: srcSize?.width ?? 0,
     srcH: srcSize?.height ?? 0,
     viewport,
+    maxZoom,
   };
 
   const panStartRef = useRef<Pan>({ x: 0, y: 0 });
@@ -167,18 +189,24 @@ export function SquareCropDialog({
     });
   }
 
+  // Shared by the slider and the Fit/Fill shortcut buttons: sets zoom and
+  // re-clamps pan against it, so none of the three callers can leave pan at
+  // a stale max that shows a gap at the edge of the square.
+  function setZoomAndClampPan(newZoom: number) {
+    const { srcW, srcH, viewport: vp } = latestRef.current;
+    if (srcW <= 0 || srcH <= 0) return;
+    const { maxPanX, maxPanY } = computeGeometry(srcW, srcH, vp, newZoom);
+    setZoom(newZoom);
+    setPan((prev) => ({ x: clamp(prev.x, maxPanX), y: clamp(prev.y, maxPanY) }));
+  }
+
   function applyZoomFromPageX(pageX: number) {
     const { width, pageX: trackPageX } = trackRef.current;
     if (width <= 0) return;
     const ratio = clampRatio((pageX - trackPageX) / width);
-    const newZoom = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
-    const { srcW, srcH, viewport: vp } = latestRef.current;
-    if (srcW <= 0 || srcH <= 0) return;
-    // Re-clamp pan against the new zoom: staying at the old max would leave
-    // a gap at the edge of the square once the image shrinks.
-    const { maxPanX, maxPanY } = computeGeometry(srcW, srcH, vp, newZoom);
-    setZoom(newZoom);
-    setPan((prev) => ({ x: clamp(prev.x, maxPanX), y: clamp(prev.y, maxPanY) }));
+    const { maxZoom: currentMaxZoom } = latestRef.current;
+    const newZoom = MIN_ZOOM + ratio * (currentMaxZoom - MIN_ZOOM);
+    setZoomAndClampPan(newZoom);
   }
 
   const zoomResponder = useRef(
@@ -195,10 +223,24 @@ export function SquareCropDialog({
   ).current;
 
   async function handleConfirm() {
-    if (!uri || !srcSize) return;
+    if (!uri || !srcSize || !geometry) return;
     setCropping(true);
     try {
-      const { scale } = computeGeometry(srcSize.width, srcSize.height, viewport, zoom);
+      if (!isCovered) {
+        // Bars are showing: the square isn't fully covered by the photo, so
+        // a crop rectangle for what's on screen would extend outside the
+        // source image. The manipulator has no way to bake letterbox bars
+        // in (its `extent` action is web-only), so cropping here would
+        // silently produce a different, zoomed-in rectangle than the one
+        // just previewed. Keep the original file instead: the caller treats
+        // onSkip as "keep the original", and since the feed renders posts
+        // with contentFit="contain", the uncropped original displays
+        // exactly as previewed - bars and all.
+        onSkip();
+        return;
+      }
+
+      const { scale } = geometry;
 
       // Convert the on-screen pan/zoom into a crop rectangle in source
       // pixels: find the centre the viewport is currently showing, then
@@ -231,7 +273,7 @@ export function SquareCropDialog({
     }
   }
 
-  const fillPct = ((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100;
+  const fillPct = ((zoom - MIN_ZOOM) / (maxZoom - MIN_ZOOM)) * 100;
 
   return (
     <Modal
@@ -286,20 +328,44 @@ export function SquareCropDialog({
               </View>
 
               <Text variant="bodySm" color="textMuted" align="center" style={styles.hint}>
-                Drag to reposition.
+                {isCovered
+                  ? 'Drag to reposition.'
+                  : 'The whole photo will be used. Zoom in to fill the square.'}
               </Text>
 
               <View style={styles.zoomSection}>
-                <Text variant="label" color="textMuted">
-                  ZOOM
-                </Text>
+                <View style={styles.zoomHeader}>
+                  <Text variant="label" color="textMuted">
+                    ZOOM
+                  </Text>
+                  <View style={styles.zoomButtons}>
+                    <Pressable
+                      onPress={() => setZoomAndClampPan(MIN_ZOOM)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Fit whole photo in the square"
+                    >
+                      <Text variant="strongSm" color="accent">
+                        Fit
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setZoomAndClampPan(coverZoom)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Fill the square, cropping the photo"
+                    >
+                      <Text variant="strongSm" color="accent">
+                        Fill
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
                 <View
                   ref={trackViewRef}
                   onLayout={measureTrack}
                   style={styles.track}
                   accessibilityRole="adjustable"
                   accessibilityLabel="Zoom"
-                  accessibilityValue={{ min: MIN_ZOOM, max: MAX_ZOOM, now: zoom }}
+                  accessibilityValue={{ min: MIN_ZOOM, max: maxZoom, now: zoom }}
                   {...zoomResponder.panHandlers}
                 >
                   <View style={styles.trackBase} />
@@ -365,6 +431,15 @@ const styles = StyleSheet.create({
   },
   zoomSection: {
     marginTop: space.md,
+  },
+  zoomHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  zoomButtons: {
+    flexDirection: 'row',
+    gap: space.md,
   },
   track: {
     height: THUMB_SIZE,
