@@ -130,6 +130,31 @@ export function useCreatePost() {
   });
 }
 
+export interface UpdatePostInput {
+  /** Absent leaves the caption untouched; explicit null clears it. */
+  caption?: string | null;
+  recipeId?: string;
+  /** Replaces the whole set, in order. Must contain 1..10 keys. */
+  imageKeys?: string[];
+}
+
+/**
+ * Not routed through `updatePostEverywhere`: an edit can change the image
+ * set and the recipe, so a plain invalidate is simpler and more correct
+ * than patching those shapes in place across every cache.
+ */
+export function useUpdatePost(postId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdatePostInput) =>
+      request(`/posts/${postId}`, { method: 'PATCH', body: input, schema: postSchema }),
+    onSuccess: (post) => {
+      queryClient.setQueryData(keys.posts.detail(post.id), post);
+      void queryClient.invalidateQueries({ queryKey: keys.posts.root });
+    },
+  });
+}
+
 export function useDeletePost() {
   const queryClient = useQueryClient();
   return useMutation({

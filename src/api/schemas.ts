@@ -168,7 +168,15 @@ export const postSchema = z.object({
   caption: z.string().nullable(),
   createdAt: z.string(),
   author: userSummarySchema,
-  images: z.array(z.object({ id: z.string(), url: z.string() })),
+  images: z.array(
+    z.object({
+      id: z.string(),
+      url: z.string(),
+      // PATCH replaces the image set wholesale, not a diff - editing a post
+      // requires re-sending the keys of any existing images to keep.
+      storageKey: z.string(),
+    }),
+  ),
   recipe: z.object({
     id: z.string(),
     title: z.string(),

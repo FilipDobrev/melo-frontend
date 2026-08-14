@@ -28,7 +28,7 @@ export function PostActionsSheet({ post, onClose, onDeleted }: PostActionsSheetP
   const deletePost = useDeletePost();
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
-  const visibleRowCount = 1 + (ownsRecipe ? 1 : 0) + (isOwner ? 1 : 0);
+  const visibleRowCount = 1 + (ownsRecipe ? 1 : 0) + (isOwner ? 2 : 0);
 
   function viewRecipe() {
     if (!post) return;
@@ -40,6 +40,12 @@ export function PostActionsSheet({ post, onClose, onDeleted }: PostActionsSheetP
     if (!post) return;
     onClose();
     router.push({ pathname: '/recipe/[id]/edit', params: { id: post.recipe.id } });
+  }
+
+  function editPost() {
+    if (!post) return;
+    onClose();
+    router.push({ pathname: '/post/[id]/edit', params: { id: post.id } });
   }
 
   function confirmDeletePost() {
@@ -59,6 +65,7 @@ export function PostActionsSheet({ post, onClose, onDeleted }: PostActionsSheetP
         <View>
           <Row icon="book-open" label="View recipe" onPress={viewRecipe} />
           {ownsRecipe && <Row icon="edit-3" label="Edit recipe" onPress={editRecipe} />}
+          {isOwner && <Row icon="edit-2" label="Edit post" onPress={editPost} />}
           {isOwner && (
             <Row icon="trash-2" label="Delete post" onPress={() => setIsConfirmingDelete(true)} danger />
           )}
