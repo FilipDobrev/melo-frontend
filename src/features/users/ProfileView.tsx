@@ -10,7 +10,6 @@ import { flattenPages } from '../../api/paging';
 import type { Post, RecipeSummary } from '../../api/schemas';
 import { formatCount } from '../../lib/format';
 import { Avatar } from '../../ui/Avatar';
-import { Button } from '../../ui/Button';
 import { EmptyState } from '../../ui/EmptyState';
 import { IconButton } from '../../ui/IconButton';
 import { Readout, Text } from '../../ui/Text';
@@ -81,29 +80,26 @@ export function ProfileView({ userId }: ProfileViewProps) {
             {profile.data.username}
           </Text>
 
-          <View style={styles.actionRow}>
-            {isMe ? (
-              <>
-                <View style={styles.editButton}>
-                  <Button
-                    title="Edit profile"
-                    variant="secondary"
-                    stretch
-                    onPress={() => router.push('/settings/profile')}
-                  />
-                </View>
-                <IconButton name="settings" label="Settings" onPress={() => router.push('/settings')} />
-              </>
-            ) : (
+          {!isMe && (
+            <View style={styles.actionRow}>
               <View style={styles.followWrap}>
                 <FollowButton userId={userId} isFollowing={profile.data.isFollowing ?? false} />
               </View>
-            )}
-          </View>
+            </View>
+          )}
 
-          <View style={styles.segmentWrap}>
-            <SegmentedControl options={TAB_OPTIONS} value={tab} onChange={(value) => setTab(value as ProfileTab)} />
-          </View>
+          {isMe ? (
+            <View style={styles.segmentWrapWithCog}>
+              <View style={styles.segmentFill}>
+                <SegmentedControl options={TAB_OPTIONS} value={tab} onChange={(value) => setTab(value as ProfileTab)} />
+              </View>
+              <IconButton name="settings" label="Settings" onPress={() => router.push('/settings')} />
+            </View>
+          ) : (
+            <View style={styles.segmentWrap}>
+              <SegmentedControl options={TAB_OPTIONS} value={tab} onChange={(value) => setTab(value as ProfileTab)} />
+            </View>
+          )}
         </View>
       ) : null,
     [profile.data, postCountLabel, isMe, userId, tab],
@@ -297,9 +293,6 @@ const styles = StyleSheet.create({
     marginTop: space.lg,
     marginHorizontal: space.lg,
   },
-  editButton: {
-    flex: 1,
-  },
   followWrap: {
     flex: 1,
   },
@@ -308,6 +301,18 @@ const styles = StyleSheet.create({
     marginHorizontal: space.lg,
     marginBottom: space.hair,
     paddingBottom: space.lg,
+  },
+  segmentWrapWithCog: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    marginTop: space.lg,
+    marginHorizontal: space.lg,
+    paddingBottom: space.lg,
+  },
+  /** The switcher takes the row; the cog sizes to itself beside it. */
+  segmentFill: {
+    flex: 1,
   },
   cellImage: {
     width: '100%',
