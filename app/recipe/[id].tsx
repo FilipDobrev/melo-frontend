@@ -17,6 +17,7 @@ import { colors, space } from '../../src/theme/theme';
 import { useCurrentUser } from '../../src/auth/AuthContext';
 import { useRecipe, useDeleteRecipe } from '../../src/api/recipes';
 import { useToggleSave } from '../../src/api/cookbook';
+import { CollectionPickerSheet } from '../../src/features/collections/CollectionPickerSheet';
 import { NutritionPanel } from '../../src/features/recipes/NutritionPanel';
 import { IngredientRow } from '../../src/features/recipes/IngredientRow';
 
@@ -32,6 +33,7 @@ export default function RecipeDetailScreen() {
 
   const [overflowVisible, setOverflowVisible] = useState(false);
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const [pickerRecipeId, setPickerRecipeId] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
 
   const isOwner = !!recipe && !!currentUser && recipe.owner.id === currentUser.id;
@@ -60,16 +62,16 @@ export default function RecipeDetailScreen() {
                 <View style={[styles.heroButton, styles.heroButtonLeft]}>
                   <IconButton name="chevron-left" onPress={() => router.back()} label="Back" color="textInverse" />
                 </View>
-                {isOwner && (
-                  <View style={[styles.heroButton, styles.heroButtonRight]}>
-                    <IconButton
-                      name="more-horizontal"
-                      onPress={() => setOverflowVisible(true)}
-                      label="More options"
-                      color="textInverse"
-                    />
-                  </View>
-                )}
+                {/* Visible to every viewer now: "Add to a collection" below is a
+                    normal thing to do with someone else's recipe, not just your own. */}
+                <View style={[styles.heroButton, styles.heroButtonRight]}>
+                  <IconButton
+                    name="more-horizontal"
+                    onPress={() => setOverflowVisible(true)}
+                    label="More options"
+                    color="textInverse"
+                  />
+                </View>
               </View>
 
               <Text variant="displayXl" style={styles.title}>
@@ -146,6 +148,13 @@ export default function RecipeDetailScreen() {
                   onPress={() => router.push({ pathname: '/cook/[id]', params: { id: recipe.id } })}
                 />
               </View>
+              {isOwner && (
+                <IconButton
+                  name="edit-3"
+                  onPress={() => router.push({ pathname: '/recipe/[id]/edit', params: { id: recipe.id } })}
+                  label="Edit recipe"
+                />
+              )}
               <IconButton
                 name="bookmark"
                 color={recipe.isSaved ? 'accent' : 'text'}
@@ -154,34 +163,52 @@ export default function RecipeDetailScreen() {
               />
             </View>
 
-            <Sheet visible={overflowVisible} onClose={() => setOverflowVisible(false)} heightRatio={0.35}>
+            <Sheet visible={overflowVisible} onClose={() => setOverflowVisible(false)} heightRatio={isOwner ? 0.42 : 0.21}>
               <Pressable
                 onPress={() => {
                   setOverflowVisible(false);
-                  router.push({ pathname: '/recipe/[id]/edit', params: { id: recipe.id } });
+                  setPickerRecipeId(recipe.id);
                 }}
                 accessibilityRole="button"
-                accessibilityLabel="Edit recipe"
+                accessibilityLabel="Add to a collection"
                 style={styles.sheetRow}
               >
-                <Feather name="edit-3" size={18} color={colors.text} />
-                <Text variant="body">Edit recipe</Text>
+                <Feather name="folder-plus" size={18} color={colors.text} />
+                <Text variant="body">Add to a collection</Text>
               </Pressable>
-              <Pressable
-                onPress={() => {
-                  setOverflowVisible(false);
-                  setConfirmDeleteVisible(true);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Delete recipe"
-                style={styles.sheetRow}
-              >
-                <Feather name="trash-2" size={18} color={colors.danger} />
-                <Text variant="body" color="danger">
-                  Delete recipe
-                </Text>
-              </Pressable>
+              {isOwner && (
+                <Pressable
+                  onPress={() => {
+                    setOverflowVisible(false);
+                    router.push({ pathname: '/recipe/[id]/edit', params: { id: recipe.id } });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit recipe"
+                  style={styles.sheetRow}
+                >
+                  <Feather name="edit-3" size={18} color={colors.text} />
+                  <Text variant="body">Edit recipe</Text>
+                </Pressable>
+              )}
+              {isOwner && (
+                <Pressable
+                  onPress={() => {
+                    setOverflowVisible(false);
+                    setConfirmDeleteVisible(true);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete recipe"
+                  style={styles.sheetRow}
+                >
+                  <Feather name="trash-2" size={18} color={colors.danger} />
+                  <Text variant="body" color="danger">
+                    Delete recipe
+                  </Text>
+                </Pressable>
+              )}
             </Sheet>
+
+            <CollectionPickerSheet recipeId={pickerRecipeId} onClose={() => setPickerRecipeId(null)} />
 
             <ConfirmDialog
               visible={confirmDeleteVisible}

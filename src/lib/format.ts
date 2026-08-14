@@ -68,11 +68,11 @@ export function formatCount(n: number): string {
   return sign + withSeparators;
 }
 
-/** "512 KCAL · 18 P · 44 C · 27 F" */
+/** "512 KCAL · 18G PROTEIN · 44G CARBS · 27G FAT" */
 export function formatMacros(n: Nutrition): string {
   const calories = Math.round(n.calories);
   const protein = Math.round(n.protein);
   const carbs = Math.round(n.carbs);
   const fat = Math.round(n.fat);
-  return `${calories} KCAL · ${protein} P · ${carbs} C · ${fat} F`;
+  return `${calories} KCAL · ${protein}G PROTEIN · ${carbs}G CARBS · ${fat}G FAT`;
 }

@@ -162,7 +162,7 @@ function StatBlock({
   const content = (
     <>
       <Readout variant="readoutLg">{value}</Readout>
-      <Text variant="label" color="textMuted">
+      <Text variant="label" color="textMuted" numberOfLines={1}>
         {label}
       </Text>
     </>
@@ -263,16 +263,21 @@ const styles = StyleSheet.create({
     paddingTop: space.lg,
     gap: space.lg,
   },
+  // Tight horizontal padding on purpose: the three columns are equal width,
+  // and FOLLOWERS/FOLLOWING are long enough to ellipsize on a narrow phone if
+  // the slab gives away any more of its width.
   statCluster: {
     flex: 1,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     backgroundColor: colors.slab,
     borderRadius: radius.md,
     paddingVertical: space.md,
-    paddingHorizontal: space.lg,
+    paddingHorizontal: space.sm,
   },
+  // Equal-width columns so each number centers over its own label, not the block's content.
   statBlock: {
+    flex: 1,
     alignItems: 'center',
     gap: space.xs,
   },
@@ -302,6 +307,7 @@ const styles = StyleSheet.create({
     marginTop: space.lg,
     marginHorizontal: space.lg,
     marginBottom: space.hair,
+    paddingBottom: space.lg,
   },
   cellImage: {
     width: '100%',
