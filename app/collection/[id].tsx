@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
-import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
 
 import { errorMessage } from '../../src/api/client';
 import {
@@ -21,6 +21,7 @@ import { ScreenHeader } from '../../src/ui/ScreenHeader';
 import { Sheet } from '../../src/ui/Sheet';
 import { StateView } from '../../src/ui/StateView';
 import { space } from '../../src/theme/theme';
+import { useContentWidth } from '../../src/theme/layout';
 
 export default function CollectionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -35,8 +36,8 @@ export default function CollectionScreen() {
   const [renameError, setRenameError] = useState<string>();
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
 
-  const { width } = useWindowDimensions();
-  const tileWidth = (width - space.lg * 2 - space.md) / 2;
+  const width = useContentWidth();
+  const tileWidth = Math.floor((width - space.lg * 2 - space.md) / 2);
   const recipeItems = flattenPages(recipes.data);
 
   function openRename() {

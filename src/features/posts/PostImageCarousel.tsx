@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
 import React, { useRef } from 'react';
-import { FlatList, NativeScrollEvent, NativeSyntheticEvent, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { FlatList, NativeScrollEvent, NativeSyntheticEvent, Pressable, StyleSheet, View } from 'react-native';
 import { colors, radius, space } from '../../theme/theme';
+import { useContentWidth } from '../../theme/layout';
 import { Readout } from '../../ui/Text';
 
 interface PostImage {
@@ -20,7 +21,7 @@ interface PostImageCarouselProps {
 const DOUBLE_TAP_MS = 280;
 
 export function PostImageCarousel({ images, index, onIndexChange, onDoubleTap }: PostImageCarouselProps) {
-  const { width } = useWindowDimensions();
+  const width = useContentWidth();
   const lastTapAtRef = useRef(0);
 
   function handleMomentumScrollEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {

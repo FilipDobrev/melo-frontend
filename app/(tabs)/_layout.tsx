@@ -9,6 +9,7 @@ import { Avatar } from '../../src/ui/Avatar';
 import { Sheet } from '../../src/ui/Sheet';
 import { Text } from '../../src/ui/Text';
 import { colors, space } from '../../src/theme/theme';
+import { MAX_CONTENT_WIDTH } from '../../src/theme/layout';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -34,6 +35,12 @@ export default function TabsLayout() {
             borderTopWidth: 1,
             height: 56 + insets.bottom,
             paddingTop: space.sm,
+            // The bar lives outside Screen, so it needs the same cap or five
+            // icons end up strewn across a desktop window while the content
+            // above them sits in a narrow column.
+            width: '100%',
+            maxWidth: MAX_CONTENT_WIDTH,
+            alignSelf: 'center',
           },
         }}
       >

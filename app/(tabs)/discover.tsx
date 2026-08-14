@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useCategories } from '../../src/api/catalog';
 import { flattenPages } from '../../src/api/paging';
@@ -14,6 +14,7 @@ import { Screen } from '../../src/ui/Screen';
 import { SegmentedControl } from '../../src/ui/SegmentedControl';
 import { StateView } from '../../src/ui/StateView';
 import { space } from '../../src/theme/theme';
+import { useContentWidth } from '../../src/theme/layout';
 
 type DiscoverTab = 'recipes' | 'people';
 
@@ -40,8 +41,8 @@ export default function DiscoverScreen() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const { width } = useWindowDimensions();
-  const tileWidth = (width - space.lg * 2 - space.md) / 2;
+  const width = useContentWidth();
+  const tileWidth = Math.floor((width - space.lg * 2 - space.md) / 2);
 
   const categories = useCategories();
   const recipes = useRecipeSearch(debouncedSearch, selectedSlugs, sort);

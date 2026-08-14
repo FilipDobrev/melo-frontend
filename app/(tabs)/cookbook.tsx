@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useCategories } from '../../src/api/catalog';
 import { useCookbook, useToggleSave } from '../../src/api/cookbook';
@@ -15,14 +15,15 @@ import { Sheet } from '../../src/ui/Sheet';
 import { StateView } from '../../src/ui/StateView';
 import { Text } from '../../src/ui/Text';
 import { space } from '../../src/theme/theme';
+import { useContentWidth } from '../../src/theme/layout';
 
 export default function CookbookScreen() {
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [longPressedRecipeId, setLongPressedRecipeId] = useState<string | null>(null);
   const [pickerRecipeId, setPickerRecipeId] = useState<string | null>(null);
 
-  const { width } = useWindowDimensions();
-  const tileWidth = (width - space.lg * 2 - space.md) / 2;
+  const width = useContentWidth();
+  const tileWidth = Math.floor((width - space.lg * 2 - space.md) / 2);
 
   const categories = useCategories();
   const cookbook = useCookbook(selectedSlugs);

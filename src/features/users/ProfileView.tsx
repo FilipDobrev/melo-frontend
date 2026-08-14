@@ -1,8 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { useCurrentUser } from '../../auth/AuthContext';
 import { useProfile, useUserPosts, useUserRecipes } from '../../api/users';
@@ -16,7 +16,8 @@ import { IconButton } from '../../ui/IconButton';
 import { Readout, Text } from '../../ui/Text';
 import { SegmentedControl } from '../../ui/SegmentedControl';
 import { StateView } from '../../ui/StateView';
-import { colors, space } from '../../theme/theme';
+import { colors, radius, space } from '../../theme/theme';
+import { useContentWidth } from '../../theme/layout';
 import { FollowButton } from './FollowButton';
 
 interface ProfileViewProps {
@@ -39,132 +40,151 @@ export function ProfileView({ userId }: ProfileViewProps) {
   const recipes = useUserRecipes(userId);
   const [tab, setTab] = useState<ProfileTab>('posts');
 
-  const { width } = useWindowDimensions();
-  const tileSize = Math.floor((width - 2) / 3);
+  const contentWidth = useContentWidth();
+  const tileSize = Math.floor((contentWidth - 2) / 3);
 
   const postItems = flattenPages(posts.data);
   const recipeItems = flattenPages(recipes.data);
   const postCountLabel = posts.hasNextPage ? `${formatCount(postItems.length)}+` : formatCount(postItems.length);
 
-  const header = profile.data ? (
-    <View>
-      <View style={styles.headerRow}>
-        <Avatar uri={profile.data.profileImage} username={profile.data.username} size={84} />
-        <View style={styles.statsRow}>
-          <StatBlock value={postCountLabel} label="POSTS" />
-          <Pressable
-            style={styles.statBlock}
-            accessibilityRole="button"
-            accessibilityLabel="Followers"
-            onPress={() => router.push({ pathname: '/user/[id]/followers', params: { id: userId } })}
-          >
-            <Readout variant="readoutLg">{formatCount(profile.data.followerCount)}</Readout>
-            <Text variant="label" color="textMuted">
-              FOLLOWERS
-            </Text>
-          </Pressable>
-          <Pressable
-            style={styles.statBlock}
-            accessibilityRole="button"
-            accessibilityLabel="Following"
-            onPress={() => router.push({ pathname: '/user/[id]/following', params: { id: userId } })}
-          >
-            <Readout variant="readoutLg">{formatCount(profile.data.followingCount)}</Readout>
-            <Text variant="label" color="textMuted">
-              FOLLOWING
-            </Text>
-          </Pressable>
-        </View>
-      </View>
+  const isPostsTab = tab === 'posts';
+  const gridData: (Post | RecipeSummary)[] = isPostsTab ? postItems : recipeItems;
+  const activeQuery = isPostsTab ? posts : recipes;
+  const isLoadingGrid = activeQuery.isLoading;
 
-      <Text variant="displayLg" style={styles.username}>
-        {profile.data.username}
-      </Text>
-
-      <View style={styles.actionRow}>
-        {isMe ? (
-          <>
-            <View style={styles.editButton}>
-              <Button
-                title="Edit profile"
-                variant="secondary"
-                stretch
-                onPress={() => router.push('/settings/profile')}
+  const header = useMemo(
+    () =>
+      profile.data ? (
+        <View>
+          <View style={styles.headerRow}>
+            <Avatar uri={profile.data.profileImage} username={profile.data.username} size={84} />
+            <View style={styles.statCluster}>
+              <StatBlock value={postCountLabel} label="POSTS" />
+              <View style={styles.statRule} />
+              <StatBlock
+                value={formatCount(profile.data.followerCount)}
+                label="FOLLOWERS"
+                accessibilityLabel="Followers"
+                onPress={() => router.push({ pathname: '/user/[id]/followers', params: { id: userId } })}
+              />
+              <View style={styles.statRule} />
+              <StatBlock
+                value={formatCount(profile.data.followingCount)}
+                label="FOLLOWING"
+                accessibilityLabel="Following"
+                onPress={() => router.push({ pathname: '/user/[id]/following', params: { id: userId } })}
               />
             </View>
-            <IconButton name="settings" label="Settings" onPress={() => router.push('/settings')} />
-          </>
-        ) : (
-          <View style={styles.followWrap}>
-            <FollowButton userId={userId} isFollowing={profile.data.isFollowing ?? false} />
           </View>
-        )}
-      </View>
 
-      <View style={styles.segmentWrap}>
-        <SegmentedControl options={TAB_OPTIONS} value={tab} onChange={(value) => setTab(value as ProfileTab)} />
-      </View>
-    </View>
-  ) : null;
+          <Text variant="displayLg" style={styles.username}>
+            {profile.data.username}
+          </Text>
 
-  const isPostsTab = tab === 'posts';
-  const isLoadingGrid = isPostsTab ? posts.isLoading : recipes.isLoading;
+          <View style={styles.actionRow}>
+            {isMe ? (
+              <>
+                <View style={styles.editButton}>
+                  <Button
+                    title="Edit profile"
+                    variant="secondary"
+                    stretch
+                    onPress={() => router.push('/settings/profile')}
+                  />
+                </View>
+                <IconButton name="settings" label="Settings" onPress={() => router.push('/settings')} />
+              </>
+            ) : (
+              <View style={styles.followWrap}>
+                <FollowButton userId={userId} isFollowing={profile.data.isFollowing ?? false} />
+              </View>
+            )}
+          </View>
+
+          <View style={styles.segmentWrap}>
+            <SegmentedControl options={TAB_OPTIONS} value={tab} onChange={(value) => setTab(value as ProfileTab)} />
+          </View>
+        </View>
+      ) : null,
+    [profile.data, postCountLabel, isMe, userId, tab],
+  );
 
   return (
     <View style={styles.container}>
       <StateView isLoading={profile.isLoading} error={profile.error} onRetry={() => profile.refetch()}>
-        {isPostsTab ? (
-          <FlatList
-            key="posts"
-            style={styles.container}
-            data={postItems}
-            numColumns={3}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <PostCell post={item} size={tileSize} />}
-            ListHeaderComponent={header}
-            onEndReached={() => {
-              if (posts.hasNextPage && !posts.isFetchingNextPage) posts.fetchNextPage();
-            }}
-            onEndReachedThreshold={0.5}
-            ListEmptyComponent={
-              isLoadingGrid || !profile.data ? null : <PostsEmptyState isMe={isMe} />
-            }
-          />
-        ) : (
-          <FlatList
-            key="recipes"
-            style={styles.container}
-            data={recipeItems}
-            numColumns={3}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <RecipeCell recipe={item} size={tileSize} />}
-            ListHeaderComponent={header}
-            onEndReached={() => {
-              if (recipes.hasNextPage && !recipes.isFetchingNextPage) recipes.fetchNextPage();
-            }}
-            onEndReachedThreshold={0.5}
-            ListEmptyComponent={
-              isLoadingGrid || !profile.data ? null : <RecipesEmptyState isMe={isMe} />
-            }
-          />
-        )}
+        {/*
+          One FlatList, no `key` prop. Two keyed lists would unmount/remount
+          on every tab switch, which destroys ListHeaderComponent (and the
+          avatar inside it) along with the grid tiles - that's what made the
+          images look like they were reloading. numColumns is 3 on both
+          tabs, so nothing here needs the remount-on-key-change escape hatch.
+        */}
+        <FlatList
+          style={styles.container}
+          data={gridData}
+          numColumns={3}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (isPost(item) ? <PostCell post={item} size={tileSize} /> : <RecipeCell recipe={item} size={tileSize} />)}
+          ListHeaderComponent={header}
+          onEndReached={() => {
+            if (activeQuery.hasNextPage && !activeQuery.isFetchingNextPage) activeQuery.fetchNextPage();
+          }}
+          onEndReachedThreshold={0.5}
+          ListEmptyComponent={
+            isLoadingGrid || !profile.data ? null : isPostsTab ? (
+              <PostsEmptyState isMe={isMe} />
+            ) : (
+              <RecipesEmptyState isMe={isMe} />
+            )
+          }
+        />
       </StateView>
     </View>
   );
 }
 
-function StatBlock({ value, label }: { value: string; label: string }) {
-  return (
-    <View style={styles.statBlock}>
+/** A post has an `images` array; a recipe summary does not. */
+function isPost(item: Post | RecipeSummary): item is Post {
+  return 'images' in item;
+}
+
+function StatBlock({
+  value,
+  label,
+  accessibilityLabel,
+  onPress,
+}: {
+  value: string;
+  label: string;
+  accessibilityLabel?: string;
+  onPress?: () => void;
+}) {
+  const content = (
+    <>
       <Readout variant="readoutLg">{value}</Readout>
       <Text variant="label" color="textMuted">
         {label}
       </Text>
-    </View>
+    </>
+  );
+
+  if (!onPress) {
+    return <View style={styles.statBlock}>{content}</View>;
+  }
+
+  return (
+    <Pressable
+      style={styles.statBlock}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      onPress={onPress}
+    >
+      {content}
+    </Pressable>
   );
 }
 
-function PostCell({ post, size }: { post: Post; size: number }) {
+const PostCell = React.memo(function PostCell({ post, size }: { post: Post; size: number }) {
   const firstImage = post.images[0];
   return (
     <Pressable
@@ -176,6 +196,7 @@ function PostCell({ post, size }: { post: Post; size: number }) {
       <Image
         source={firstImage ? { uri: firstImage.url } : undefined}
         contentFit="cover"
+        cachePolicy="memory-disk"
         style={[styles.cellImage, { backgroundColor: colors.slab }]}
       />
       {post.images.length > 1 && (
@@ -185,9 +206,9 @@ function PostCell({ post, size }: { post: Post; size: number }) {
       )}
     </Pressable>
   );
-}
+});
 
-function RecipeCell({ recipe, size }: { recipe: RecipeSummary; size: number }) {
+const RecipeCell = React.memo(function RecipeCell({ recipe, size }: { recipe: RecipeSummary; size: number }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -195,7 +216,12 @@ function RecipeCell({ recipe, size }: { recipe: RecipeSummary; size: number }) {
       onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: recipe.id } })}
       style={{ width: size, height: size }}
     >
-      <Image source={{ uri: recipe.imageUrl }} contentFit="cover" style={[styles.cellImage, { backgroundColor: colors.slab }]} />
+      <Image
+        source={{ uri: recipe.imageUrl }}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        style={[styles.cellImage, { backgroundColor: colors.slab }]}
+      />
       <View style={styles.recipeTitleBand}>
         <Text variant="bodySm" color="textInverse" numberOfLines={2}>
           {recipe.title}
@@ -203,7 +229,7 @@ function RecipeCell({ recipe, size }: { recipe: RecipeSummary; size: number }) {
       </View>
     </Pressable>
   );
-}
+});
 
 function PostsEmptyState({ isMe }: { isMe: boolean }) {
   return (
@@ -237,14 +263,23 @@ const styles = StyleSheet.create({
     paddingTop: space.lg,
     gap: space.lg,
   },
-  statsRow: {
+  statCluster: {
     flex: 1,
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: colors.slab,
+    borderRadius: radius.md,
+    paddingVertical: space.md,
+    paddingHorizontal: space.lg,
   },
   statBlock: {
-    flex: 1,
     alignItems: 'center',
     gap: space.xs,
+  },
+  statRule: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: colors.lineStrong,
   },
   username: {
     marginTop: space.lg,
