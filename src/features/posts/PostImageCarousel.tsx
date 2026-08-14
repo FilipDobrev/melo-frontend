@@ -52,7 +52,10 @@ export function PostImageCarousel({ images, index, onIndexChange, onDoubleTap }:
           <Pressable onPress={handlePress} accessibilityRole="image" accessibilityLabel="Post photo">
             <Image
               source={{ uri: item.url }}
-              contentFit="cover"
+              // The square frame is a layout constant, not a crop instruction - cropping
+              // now happens once, explicitly, before upload, so the renderer must show
+              // the whole photo rather than cutting edges off non-square images.
+              contentFit="contain"
               transition={180}
               style={{ width, aspectRatio: 1, backgroundColor: colors.slab }}
             />

@@ -8,11 +8,13 @@ import { errorMessage } from '../../src/api/client';
 import { requestPostImageUpload, useCreatePost } from '../../src/api/posts';
 import { useRecipe } from '../../src/api/recipes';
 import type { Nutrition } from '../../src/api/schemas';
+import { SquareCropDialog } from '../../src/features/media/SquareCropDialog';
 import { uploadImages } from '../../src/lib/upload';
 import { formatMacros } from '../../src/lib/format';
 import { colors, HIT_SLOP, radius, space } from '../../src/theme/theme';
 import { Button } from '../../src/ui/Button';
 import { Field } from '../../src/ui/Field';
+import { IconButton } from '../../src/ui/IconButton';
 import { Screen } from '../../src/ui/Screen';
 import { ScreenHeader } from '../../src/ui/ScreenHeader';
 import { StateView } from '../../src/ui/StateView';
@@ -28,9 +30,15 @@ export default function ComposeScreen() {
   const createPost = useCreatePost();
 
   const [images, setImages] = useState<string[]>([]);
+  const [cropQueue, setCropQueue] = useState<string[]>([]);
+  const [recropIndex, setRecropIndex] = useState<number | null>(null);
   const [caption, setCaption] = useState('');
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Re-cropping an existing photo takes priority over the pick queue - the two never
+  // need to be visible at once, but if they somehow overlap the explicit re-crop wins.
+  const cropDialogUri = recropIndex !== null ? images[recropIndex] : (cropQueue[0] ?? null);
 
   const isUploading = progress !== null;
   const isSubmitting = isUploading || createPost.isPending;
@@ -51,11 +59,44 @@ export default function ComposeScreen() {
     if (result.canceled) return;
 
     const pickedUris = result.assets.map((asset) => asset.uri);
-    setImages((current) => [...current, ...pickedUris].slice(0, MAX_IMAGES));
+    setCropQueue((current) => [...current, ...pickedUris]);
   }
 
   function removeImage(uri: string) {
     setImages((current) => current.filter((existing) => existing !== uri));
+  }
+
+  function handleCropDone(croppedUri: string) {
+    if (recropIndex !== null) {
+      const index = recropIndex;
+      setImages((current) => current.map((existing, i) => (i === index ? croppedUri : existing)));
+      setRecropIndex(null);
+      return;
+    }
+    setImages((current) => (current.length >= MAX_IMAGES ? current : [...current, croppedUri]));
+    setCropQueue((current) => current.slice(1));
+  }
+
+  function handleCropSkip() {
+    if (recropIndex !== null) {
+      setRecropIndex(null);
+      return;
+    }
+    const originalUri = cropQueue[0];
+    setImages((current) =>
+      current.length >= MAX_IMAGES || originalUri === undefined ? current : [...current, originalUri],
+    );
+    setCropQueue((current) => current.slice(1));
+  }
+
+  function handleCropCancel() {
+    if (recropIndex !== null) {
+      setRecropIndex(null);
+      return;
+    }
+    // The user rejected this one photo, not the rest of the batch - shift past it
+    // so the next queued photo opens immediately instead of losing the whole pick.
+    setCropQueue((current) => current.slice(1));
   }
 
   async function handleSubmit() {
@@ -104,9 +145,18 @@ export default function ComposeScreen() {
             <ChosenRecipe title={recipe.data.title} nutrition={recipe.data.nutrition} />
 
             <View style={styles.imageRow}>
-              {images.map((uri) => (
+              {images.map((uri, imageIndex) => (
                 <View key={uri} style={styles.thumbnailWrap}>
                   <Image source={{ uri }} contentFit="cover" style={styles.thumbnail} />
+                  <View style={styles.cropButton}>
+                    <IconButton
+                      name="crop"
+                      onPress={() => setRecropIndex(imageIndex)}
+                      label="Crop photo"
+                      size={14}
+                      color="textInverse"
+                    />
+                  </View>
                   <View style={styles.removeButton}>
                     <Pressable
                       onPress={() => removeImage(uri)}
@@ -155,6 +205,13 @@ export default function ComposeScreen() {
           </ScrollView>
         )}
       </StateView>
+      <SquareCropDialog
+        uri={cropDialogUri ?? null}
+        onCancel={handleCropCancel}
+        onSkip={handleCropSkip}
+        onDone={handleCropDone}
+        confirmLabel="Use photo"
+      />
     </Screen>
   );
 }
@@ -229,6 +286,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.scrim,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  cropButton: {
+    position: 'absolute',
+    bottom: space.xs,
+    left: space.xs,
+    width: 22,
+    height: 22,
+    borderRadius: radius.pill,
+    backgroundColor: colors.scrim,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   addTile: {
     width: 88,

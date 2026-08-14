@@ -6,6 +6,7 @@ import { Alert, StyleSheet, View } from 'react-native';
 import { useAuth, useCurrentUser } from '../../src/auth/AuthContext';
 import { errorMessage } from '../../src/api/client';
 import { requestAvatarUpload, useUpdateProfile } from '../../src/api/users';
+import { SquareCropDialog } from '../../src/features/media/SquareCropDialog';
 import { uploadImage } from '../../src/lib/upload';
 import { Avatar } from '../../src/ui/Avatar';
 import { Button } from '../../src/ui/Button';
@@ -23,6 +24,7 @@ export default function EditProfileScreen() {
   const [username, setUsername] = useState(currentUser?.username ?? '');
   const [usernameError, setUsernameError] = useState<string>();
   const [pendingImage, setPendingImage] = useState<{ uri: string } | null>(null);
+  const [uncroppedUri, setUncroppedUri] = useState<string | null>(null);
   const [removeRequested, setRemoveRequested] = useState(false);
   const [serverError, setServerError] = useState<string>();
   const [isUploading, setIsUploading] = useState(false);
@@ -58,13 +60,30 @@ export default function EditProfileScreen() {
     });
     if (result.canceled || result.assets.length === 0) return;
 
-    setPendingImage({ uri: result.assets[0].uri });
-    setRemoveRequested(false);
+    setUncroppedUri(result.assets[0].uri);
   }
 
   function removePicture() {
     setPendingImage(null);
     setRemoveRequested(true);
+  }
+
+  function handleCropDone(croppedUri: string) {
+    setPendingImage({ uri: croppedUri });
+    setUncroppedUri(null);
+    setRemoveRequested(false);
+  }
+
+  function handleCropSkip() {
+    if (uncroppedUri) setPendingImage({ uri: uncroppedUri });
+    setUncroppedUri(null);
+    setRemoveRequested(false);
+  }
+
+  function handleCropCancel() {
+    // Backing out of the cropper rejects only the newly picked photo -
+    // any picture already pending from before must stay untouched.
+    setUncroppedUri(null);
   }
 
   async function handleSave() {
@@ -146,6 +165,13 @@ export default function EditProfileScreen() {
 
         <Button title="Save changes" onPress={handleSave} size="lg" stretch loading={isSaving} disabled={isSaving} />
       </View>
+      <SquareCropDialog
+        uri={uncroppedUri}
+        onCancel={handleCropCancel}
+        onSkip={handleCropSkip}
+        onDone={handleCropDone}
+        confirmLabel="Use picture"
+      />
     </Screen>
   );
 }
