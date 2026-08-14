@@ -2,8 +2,8 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { errorMessage } from '../../api/client';
-import { useDeletePost, useDeletePostImage } from '../../api/posts';
+import { useDeletePost } from '../../api/posts';
+import { useRecipe } from '../../api/recipes';
 import type { Post } from '../../api/schemas';
 import { useCurrentUser } from '../../auth/AuthContext';
 import { colors, space } from '../../theme/theme';
@@ -14,17 +14,21 @@ import { Text } from '../../ui/Text';
 interface PostActionsSheetProps {
   post: Post | null;
   onClose: () => void;
-  visibleImageIndex: number;
   onDeleted?: () => void;
 }
 
-export function PostActionsSheet({ post, onClose, visibleImageIndex, onDeleted }: PostActionsSheetProps) {
+export function PostActionsSheet({ post, onClose, onDeleted }: PostActionsSheetProps) {
   const currentUser = useCurrentUser();
   const isOwner = post !== null && post.author.id === currentUser?.id;
-  const deletePostImage = useDeletePostImage(post?.id ?? '');
+  // The post payload only carries { id, title, nutrition, isSaved } for its
+  // recipe, not the owner - post ownership doesn't imply recipe ownership
+  // (you can post about someone else's recipe), so this needs its own fetch.
+  const recipe = useRecipe(post?.recipe.id);
+  const ownsRecipe = !!recipe.data && !!currentUser && recipe.data.owner.id === currentUser.id;
   const deletePost = useDeletePost();
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [imageError, setImageError] = useState<string | null>(null);
+
+  const visibleRowCount = 1 + (ownsRecipe ? 1 : 0) + (isOwner ? 1 : 0);
 
   function viewRecipe() {
     if (!post) return;
@@ -32,14 +36,10 @@ export function PostActionsSheet({ post, onClose, visibleImageIndex, onDeleted }
     router.push({ pathname: '/recipe/[id]', params: { id: post.recipe.id } });
   }
 
-  function removePhoto() {
+  function editRecipe() {
     if (!post) return;
-    const image = post.images[visibleImageIndex];
-    if (!image) return;
-    setImageError(null);
-    deletePostImage.mutate(image.id, {
-      onError: (error) => setImageError(errorMessage(error)),
-    });
+    onClose();
+    router.push({ pathname: '/recipe/[id]/edit', params: { id: post.recipe.id } });
   }
 
   function confirmDeletePost() {
@@ -55,19 +55,12 @@ export function PostActionsSheet({ post, onClose, visibleImageIndex, onDeleted }
 
   return (
     <>
-      <Sheet visible={post !== null} onClose={onClose} heightRatio={0.4}>
+      <Sheet visible={post !== null} onClose={onClose} heightRatio={0.14 + visibleRowCount * 0.07}>
         <View>
           <Row icon="book-open" label="View recipe" onPress={viewRecipe} />
-          {isOwner && post && post.images.length > 1 && (
-            <Row icon="image" label="Remove this photo" onPress={removePhoto} danger />
-          )}
+          {ownsRecipe && <Row icon="edit-3" label="Edit recipe" onPress={editRecipe} />}
           {isOwner && (
             <Row icon="trash-2" label="Delete post" onPress={() => setIsConfirmingDelete(true)} danger />
-          )}
-          {imageError && (
-            <Text variant="bodySm" color="danger" style={styles.imageError}>
-              {imageError}
-            </Text>
           )}
         </View>
       </Sheet>
@@ -113,9 +106,5 @@ const styles = StyleSheet.create({
     gap: space.md,
     height: 52,
     paddingHorizontal: space.lg,
-  },
-  imageError: {
-    paddingHorizontal: space.lg,
-    paddingTop: space.sm,
   },
 });

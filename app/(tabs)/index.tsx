@@ -18,7 +18,6 @@ export default function FeedScreen() {
   const posts = flattenPages(feed.data);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   const [actionsPost, setActionsPost] = useState<Post | null>(null);
-  const [actionsImageIndex, setActionsImageIndex] = useState(0);
 
   const commentsPost = posts.find((post) => post.id === commentsPostId);
 
@@ -51,10 +50,7 @@ export default function FeedScreen() {
             <PostCard
               post={item}
               onOpenComments={setCommentsPostId}
-              onOpenActions={(post, imageIndex) => {
-                setActionsImageIndex(imageIndex);
-                setActionsPost(post);
-              }}
+              onOpenActions={setActionsPost}
             />
           )}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -78,11 +74,7 @@ export default function FeedScreen() {
         postOwnerId={commentsPost?.author.id}
         onClose={() => setCommentsPostId(null)}
       />
-      <PostActionsSheet
-        post={actionsPost}
-        visibleImageIndex={actionsImageIndex}
-        onClose={() => setActionsPost(null)}
-      />
+      <PostActionsSheet post={actionsPost} onClose={() => setActionsPost(null)} />
     </Screen>
   );
 }

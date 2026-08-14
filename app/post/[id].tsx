@@ -26,7 +26,6 @@ export default function PostDetailScreen() {
   const deleteComment = useDeleteComment(id ?? '');
 
   const [isActionsOpen, setIsActionsOpen] = useState(false);
-  const [visibleImageIndex, setVisibleImageIndex] = useState(0);
   const [draft, setDraft] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Comment | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -76,10 +75,7 @@ export default function PostDetailScreen() {
                     post={post.data}
                     variant="detail"
                     onOpenComments={() => {}}
-                    onOpenActions={(_post, imageIndex) => {
-                      setVisibleImageIndex(imageIndex);
-                      setIsActionsOpen(true);
-                    }}
+                    onOpenActions={() => setIsActionsOpen(true)}
                   />
                   <View style={styles.commentsHeading}>
                     <Text variant="label" color="textMuted">
@@ -134,7 +130,6 @@ export default function PostDetailScreen() {
       </StateView>
       <PostActionsSheet
         post={isActionsOpen ? post.data ?? null : null}
-        visibleImageIndex={visibleImageIndex}
         onClose={() => setIsActionsOpen(false)}
         onDeleted={() => router.back()}
       />

@@ -17,9 +17,7 @@ interface PostCardProps {
   post: Post;
   variant?: 'feed' | 'detail';
   onOpenComments: (postId: string) => void;
-  /** Receives the photo currently on screen, so "remove this photo" can
-   *  target the one the user is actually looking at. */
-  onOpenActions?: (post: Post, imageIndex: number) => void;
+  onOpenActions?: (post: Post) => void;
 }
 
 function PostCardBase({ post, variant = 'feed', onOpenComments, onOpenActions }: PostCardProps) {
@@ -80,7 +78,7 @@ function PostCardBase({ post, variant = 'feed', onOpenComments, onOpenActions }:
         {onOpenActions && (
           <IconButton
             name="more-horizontal"
-            onPress={() => onOpenActions(post, imageIndex)}
+            onPress={() => onOpenActions(post)}
             label="Post options"
           />
         )}
