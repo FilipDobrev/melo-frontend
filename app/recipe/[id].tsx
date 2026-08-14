@@ -1,222 +1,289 @@
-import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRecipe } from '../../src/hooks/useRecipes';
-import { useToggleSaveRecipe } from '../../src/hooks/useCookbook';
-import { useAuth } from '../../src/context/AuthContext';
-import { NutritionBar } from '../../src/components/NutritionBar';
-import { ErrorState, LoadingState } from '../../src/components/EmptyState';
-import { ApiError } from '../../src/api/client';
-import { deleteRecipe } from '../../src/api/recipes.api';
-import { formatUnit } from '../../src/lib/units';
+import { Feather } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Screen } from '../../src/ui/Screen';
+import { StateView } from '../../src/ui/StateView';
+import { Text } from '../../src/ui/Text';
+import { IconButton } from '../../src/ui/IconButton';
+import { Avatar } from '../../src/ui/Avatar';
+import { Chip } from '../../src/ui/Chip';
+import { Button } from '../../src/ui/Button';
+import { Sheet } from '../../src/ui/Sheet';
+import { ConfirmDialog } from '../../src/ui/ConfirmDialog';
+import { colors, space } from '../../src/theme/theme';
+import { useCurrentUser } from '../../src/auth/AuthContext';
+import { useRecipe, useDeleteRecipe } from '../../src/api/recipes';
+import { useToggleSave } from '../../src/api/cookbook';
+import { NutritionPanel } from '../../src/features/recipes/NutritionPanel';
+import { IngredientRow } from '../../src/features/recipes/IngredientRow';
+
+/** Sticky bar: space.md top padding + a 52px lg Button + a 1px hairline. */
+const BOTTOM_BAR_HEIGHT = space.md + 52 + 1;
 
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
-  const { user } = useAuth();
-  const recipeQuery = useRecipe(id);
-  const toggleSave = useToggleSaveRecipe(id);
+  const { data: recipe, isLoading, error, refetch } = useRecipe(id);
+  const currentUser = useCurrentUser();
+  const toggleSave = useToggleSave();
+  const deleteRecipe = useDeleteRecipe();
 
-  if (recipeQuery.isLoading) {
-    return <LoadingState />;
-  }
-  if (recipeQuery.isError || !recipeQuery.data) {
-    return (
-      <ErrorState
-        message={recipeQuery.error instanceof ApiError ? recipeQuery.error.message : 'Could not load this recipe.'}
-        onRetry={recipeQuery.refetch}
-      />
-    );
-  }
+  const [overflowVisible, setOverflowVisible] = useState(false);
+  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const insets = useSafeAreaInsets();
 
-  const recipe = recipeQuery.data;
-  const isOwner = user?.id === recipe.owner.id;
-  const isSaved = recipe.isSaved;
+  const isOwner = !!recipe && !!currentUser && recipe.owner.id === currentUser.id;
+  const paragraphs = recipe ? recipe.instructions.split(/\n\s*\n/).filter((p) => p.trim().length > 0) : [];
 
-  async function handleDelete() {
-    await deleteRecipe(recipe.id);
-    router.back();
+  function handleDelete() {
+    setConfirmDeleteVisible(false);
+    if (!recipe) return;
+    deleteRecipe.mutate(recipe.id, {
+      onSuccess: () => router.back(),
+    });
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>{recipe.title}</Text>
+    <Screen edges={['top']}>
+      <StateView isLoading={isLoading} error={error} onRetry={() => void refetch()}>
+        {recipe && (
+          <>
+            <ScrollView contentContainerStyle={{ paddingBottom: BOTTOM_BAR_HEIGHT + (insets.bottom || space.md) + space.xl }}>
+              <View style={styles.hero}>
+                <Image
+                  source={{ uri: recipe.imageUrl }}
+                  contentFit="cover"
+                  style={[styles.heroImage, { backgroundColor: colors.slab }]}
+                />
+                <View style={[styles.heroButton, styles.heroButtonLeft]}>
+                  <IconButton name="chevron-left" onPress={() => router.back()} label="Back" color="textInverse" />
+                </View>
+                {isOwner && (
+                  <View style={[styles.heroButton, styles.heroButtonRight]}>
+                    <IconButton
+                      name="more-horizontal"
+                      onPress={() => setOverflowVisible(true)}
+                      label="More options"
+                      color="textInverse"
+                    />
+                  </View>
+                )}
+              </View>
 
-      <Link href={{ pathname: '/user/[id]', params: { id: recipe.owner.id } }} asChild>
-        <TouchableOpacity>
-          <Text style={styles.author}>by {recipe.owner.username}</Text>
-        </TouchableOpacity>
-      </Link>
+              <Text variant="displayXl" style={styles.title}>
+                {recipe.title}
+              </Text>
 
-      {recipe.categories.length > 0 ? (
-        <View style={styles.categoryRow}>
-          {recipe.categories.map((category) => (
-            <View key={category.slug} style={styles.categoryChip}>
-              <Text style={styles.categoryText}>{category.name}</Text>
+              <Pressable
+                onPress={() => router.push({ pathname: '/user/[id]', params: { id: recipe.owner.id } })}
+                accessibilityRole="button"
+                accessibilityLabel={recipe.owner.username}
+                style={styles.ownerRow}
+              >
+                <Avatar uri={recipe.owner.profileImage} username={recipe.owner.username} size={28} />
+                <Text variant="strong">{recipe.owner.username}</Text>
+              </Pressable>
+
+              {recipe.categories.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.chipScroll}
+                  contentContainerStyle={styles.chipRow}
+                >
+                  {recipe.categories.map((category) => (
+                    <Chip key={category.slug} label={category.name} />
+                  ))}
+                </ScrollView>
+              )}
+
+              <Text variant="bodyLg" color="textMuted" style={styles.description}>
+                {recipe.description}
+              </Text>
+
+              <View style={styles.section}>
+                <NutritionPanel nutrition={recipe.nutrition} />
+              </View>
+
+              <View style={styles.section}>
+                <Text variant="label" color="textMuted" style={styles.sectionHeader}>
+                  INGREDIENTS
+                </Text>
+                <View style={styles.ingredientList}>
+                  {recipe.ingredients.map((ingredient) => (
+                    <IngredientRow
+                      key={ingredient.id}
+                      name={ingredient.product.name}
+                      quantity={ingredient.quantity}
+                      unit={ingredient.unit}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <Text variant="label" color="textMuted" style={styles.sectionHeader}>
+                  INSTRUCTIONS
+                </Text>
+                <View style={styles.instructions}>
+                  {paragraphs.map((paragraph, index) => (
+                    <Text key={index} variant="bodyLg" style={index > 0 ? styles.paragraphGap : undefined}>
+                      {paragraph.trim()}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={[styles.bottomBar, { paddingBottom: insets.bottom || space.md }]}>
+              <View style={styles.bottomBarButton}>
+                <Button
+                  title="Start cooking"
+                  size="lg"
+                  stretch
+                  onPress={() => router.push({ pathname: '/cook/[id]', params: { id: recipe.id } })}
+                />
+              </View>
+              <IconButton
+                name="bookmark"
+                color={recipe.isSaved ? 'accent' : 'text'}
+                onPress={() => toggleSave.mutate({ recipeId: recipe.id, saved: !recipe.isSaved })}
+                label={recipe.isSaved ? 'Remove from cookbook' : 'Save to cookbook'}
+              />
             </View>
-          ))}
-        </View>
-      ) : null}
 
-      <Text style={styles.description}>{recipe.description}</Text>
+            <Sheet visible={overflowVisible} onClose={() => setOverflowVisible(false)} heightRatio={0.35}>
+              <Pressable
+                onPress={() => {
+                  setOverflowVisible(false);
+                  router.push({ pathname: '/recipe/[id]/edit', params: { id: recipe.id } });
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Edit recipe"
+                style={styles.sheetRow}
+              >
+                <Feather name="edit-3" size={18} color={colors.text} />
+                <Text variant="body">Edit recipe</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setOverflowVisible(false);
+                  setConfirmDeleteVisible(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Delete recipe"
+                style={styles.sheetRow}
+              >
+                <Feather name="trash-2" size={18} color={colors.danger} />
+                <Text variant="body" color="danger">
+                  Delete recipe
+                </Text>
+              </Pressable>
+            </Sheet>
 
-      <NutritionBar nutrition={recipe.nutrition} />
-
-      <TouchableOpacity style={styles.cookButton} onPress={() => router.push({ pathname: '/cook/[recipeId]', params: { recipeId: recipe.id } })}>
-        <Text style={styles.cookButtonText}>Cook this</Text>
-      </TouchableOpacity>
-
-      {!isOwner ? (
-        <TouchableOpacity
-          style={[styles.saveButton, isSaved && styles.saveButtonActive]}
-          onPress={() => toggleSave.mutate(isSaved)}
-          disabled={toggleSave.isPending}
-        >
-          <Text style={[styles.saveButtonText, isSaved && styles.saveButtonTextActive]}>
-            {isSaved ? 'Saved to cookbook' : 'Save to cookbook'}
-          </Text>
-        </TouchableOpacity>
-      ) : (
-        <View style={styles.ownerActions}>
-          <Link href={{ pathname: '/recipe/new', params: { editId: recipe.id } }} asChild>
-            <TouchableOpacity style={styles.editButton}>
-              <Text style={styles.editButtonText}>Edit</Text>
-            </TouchableOpacity>
-          </Link>
-          <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-            <Text style={styles.deleteButtonText}>Delete</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <Text style={styles.sectionTitle}>Ingredients</Text>
-      {recipe.ingredients.map((ingredient) => (
-        <View key={ingredient.id} style={styles.ingredientRow}>
-          <Text style={styles.ingredientText}>
-            {ingredient.quantity} {formatUnit(ingredient.unit)} {ingredient.product.name}
-          </Text>
-        </View>
-      ))}
-
-      <Text style={styles.sectionTitle}>Instructions</Text>
-      <Text style={styles.instructions}>{recipe.instructions}</Text>
-    </ScrollView>
+            <ConfirmDialog
+              visible={confirmDeleteVisible}
+              title="Delete recipe"
+              body="This also removes it from everyone's cookbooks."
+              confirmLabel="Delete"
+              destructive
+              onConfirm={handleDelete}
+              onCancel={() => setConfirmDeleteVisible(false)}
+            />
+          </>
+        )}
+      </StateView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFBF5',
+  hero: {
+    width: '100%',
+    aspectRatio: 4 / 3,
   },
-  content: {
-    padding: 16,
+  heroImage: {
+    width: '100%',
+    height: '100%',
+  },
+  heroButton: {
+    position: 'absolute',
+    top: space.md,
+    borderRadius: 999,
+    backgroundColor: colors.scrimSoft,
+  },
+  heroButtonLeft: {
+    left: space.md,
+  },
+  heroButtonRight: {
+    right: space.md,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#2B2620',
+    marginHorizontal: space.lg,
+    marginTop: space.lg,
   },
-  author: {
-    fontSize: 14,
-    color: '#B5541A',
-    fontWeight: '600',
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  categoryRow: {
+  ownerRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 10,
+    alignItems: 'center',
+    gap: space.sm,
+    marginHorizontal: space.lg,
+    marginTop: space.md,
   },
-  categoryChip: {
-    backgroundColor: '#F5F0E8',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  // A ScrollView defaults to flexGrow 1; pinned to 0 so a horizontal one can
+  // never claim vertical space beyond its single row of chips.
+  chipScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
   },
-  categoryText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B6155',
+  chipRow: {
+    gap: space.sm,
+    marginHorizontal: space.lg,
+    marginTop: space.md,
   },
   description: {
-    fontSize: 15,
-    color: '#2B2620',
-    marginBottom: 16,
+    marginHorizontal: space.lg,
+    marginTop: space.md,
   },
-  cookButton: {
-    marginTop: 16,
-    backgroundColor: '#2B2620',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
+  section: {
+    marginTop: space.xl,
   },
-  cookButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+  sectionHeader: {
+    marginHorizontal: space.lg,
+    marginBottom: space.sm,
   },
-  saveButton: {
-    marginTop: 16,
-    backgroundColor: '#B5541A',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  saveButtonActive: {
-    backgroundColor: '#F5F0E8',
-  },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  saveButtonTextActive: {
-    color: '#B5541A',
-  },
-  ownerActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
-  },
-  editButton: {
-    flex: 1,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: '#F5F0E8',
-  },
-  editButtonText: {
-    color: '#2B2620',
-    fontWeight: '700',
-  },
-  deleteButton: {
-    flex: 1,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: '#FBEAEA',
-  },
-  deleteButtonText: {
-    color: '#C0392B',
-    fontWeight: '700',
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#2B2620',
-    marginTop: 24,
-    marginBottom: 10,
-  },
-  ingredientRow: {
-    paddingVertical: 6,
-  },
-  ingredientText: {
-    fontSize: 15,
-    color: '#2B2620',
+  ingredientList: {
+    marginHorizontal: space.lg,
   },
   instructions: {
-    fontSize: 15,
-    color: '#2B2620',
-    lineHeight: 22,
+    marginHorizontal: space.lg,
+  },
+  paragraphGap: {
+    marginTop: space.md,
+  },
+  bottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+  },
+  bottomBarButton: {
+    flex: 1,
+  },
+  sheetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
   },
 });

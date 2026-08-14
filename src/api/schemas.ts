@@ -1,10 +1,12 @@
-// Zod schemas mirroring the response shapes documented in backend/API.md.
-// Every response from the API is parsed through one of these before the app
-// touches it, so a malformed or unexpectedly-shaped payload fails loudly
-// instead of producing `undefined`s deep in a screen.
 import { z } from 'zod';
 
-export const unitSchema = z.enum([
+/**
+ * Every response the app touches is parsed through one of these first, so a
+ * backend change surfaces as one loud contract error instead of a scatter of
+ * undefined reads deep in the render tree.
+ */
+
+export const UNITS = [
   'GRAM',
   'KILOGRAM',
   'MILLILITRE',
@@ -13,54 +15,47 @@ export const unitSchema = z.enum([
   'TABLESPOON',
   'TEASPOON',
   'PIECE',
-]);
+] as const;
+
+export const unitSchema = z.enum(UNITS);
 export type Unit = z.infer<typeof unitSchema>;
 
-export const errorResponseSchema = z.object({
-  error: z.object({
-    code: z.enum([
-      'BAD_REQUEST',
-      'UNAUTHENTICATED',
-      'FORBIDDEN',
-      'NOT_FOUND',
-      'CONFLICT',
-      'VALIDATION_FAILED',
-      'INTERNAL',
-    ]),
-    message: z.string(),
-    details: z.unknown().optional(),
-  }),
-});
-
-export function paginated<T extends z.ZodTypeAny>(itemSchema: T) {
-  return z.object({
-    items: z.array(itemSchema),
-    nextCursor: z.string().nullable(),
-  });
+/** Cursor page. `nextCursor` is null on the last page. */
+export function pageSchema<T extends z.ZodTypeAny>(item: T) {
+  return z.object({ items: z.array(item), nextCursor: z.string().nullable() });
 }
 
-export const publicUserSchema = z.object({
+export interface Page<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+
+export const meSchema = z.object({
+  id: z.string(),
+  username: z.string(),
+  email: z.string(),
+  profileImage: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type Me = z.infer<typeof meSchema>;
+
+export const userSummarySchema = z.object({
   id: z.string(),
   username: z.string(),
   profileImage: z.string().nullable(),
 });
+export type UserSummary = z.infer<typeof userSummarySchema>;
+
+export const publicUserSchema = userSummarySchema.extend({ createdAt: z.string() });
 export type PublicUser = z.infer<typeof publicUserSchema>;
 
-// GET /users/me
-export const meSchema = publicUserSchema.extend({
-  email: z.string(),
-});
-export type Me = z.infer<typeof meSchema>;
-
-// GET /users/:userId - public profile + counts + isFollowing.
-export const userProfileSchema = publicUserSchema.extend({
+export const publicProfileSchema = publicUserSchema.extend({
   followerCount: z.number(),
   followingCount: z.number(),
-  // The API omits this key entirely for anonymous viewers and for your own
-  // profile, rather than sending a misleading false.
+  // Absent when viewing anonymously or when the profile is your own.
   isFollowing: z.boolean().optional(),
 });
-export type UserProfile = z.infer<typeof userProfileSchema>;
+export type PublicProfile = z.infer<typeof publicProfileSchema>;
 
 export const authResultSchema = z.object({
   user: meSchema,
@@ -69,19 +64,15 @@ export const authResultSchema = z.object({
 });
 export type AuthResult = z.infer<typeof authResultSchema>;
 
-// POST /auth/refresh -> { accessToken, refreshToken } only (no user).
-export const refreshResultSchema = z.object({
-  accessToken: z.string(),
-  refreshToken: z.string(),
-});
-export type RefreshResult = z.infer<typeof refreshResultSchema>;
-
 export const categorySchema = z.object({
   id: z.string(),
-  name: z.string(),
   slug: z.string(),
+  name: z.string(),
 });
 export type Category = z.infer<typeof categorySchema>;
+
+export const recipeCategorySchema = z.object({ slug: z.string(), name: z.string() });
+export type RecipeCategory = z.infer<typeof recipeCategorySchema>;
 
 export const productSchema = z.object({
   id: z.string(),
@@ -103,13 +94,17 @@ export const nutritionSchema = z.object({
 });
 export type Nutrition = z.infer<typeof nutritionSchema>;
 
-// Categories nested inside a recipe carry only slug and name. The full
-// category (with id) comes from GET /categories.
-export const recipeCategorySchema = z.object({
-  slug: z.string(),
-  name: z.string(),
+export const recipeSummarySchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  owner: userSummarySchema,
+  categories: z.array(recipeCategorySchema),
+  imageUrl: z.string(),
 });
-export type RecipeCategory = z.infer<typeof recipeCategorySchema>;
+export type RecipeSummary = z.infer<typeof recipeSummarySchema>;
 
 export const recipeIngredientSchema = z.object({
   id: z.string(),
@@ -119,21 +114,6 @@ export const recipeIngredientSchema = z.object({
 });
 export type RecipeIngredient = z.infer<typeof recipeIngredientSchema>;
 
-// GET /recipes - list item (no ingredients/instructions).
-// `updatedAt` is present on /recipes and /users/:userId/recipes but absent
-// on /users/me/cookbook and collection recipe lists, so it's optional here.
-export const recipeSummarySchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string().optional(),
-  owner: publicUserSchema,
-  categories: z.array(recipeCategorySchema),
-});
-export type RecipeSummary = z.infer<typeof recipeSummarySchema>;
-
-// GET /recipes/:recipeId - full detail.
 export const recipeDetailSchema = recipeSummarySchema.extend({
   instructions: z.string(),
   ingredients: z.array(recipeIngredientSchema),
@@ -142,44 +122,18 @@ export const recipeDetailSchema = recipeSummarySchema.extend({
 });
 export type RecipeDetail = z.infer<typeof recipeDetailSchema>;
 
-const recipeRefSchema = z.object({
+/** Cookbook and collection listings return a lighter card than /recipes. */
+export const savedRecipeSchema = z.object({
   id: z.string(),
   title: z.string(),
-  nutrition: nutritionSchema,
-  isSaved: z.boolean(),
-});
-
-export const postImageSchema = z.object({
-  id: z.string(),
-  url: z.string(),
-});
-export type PostImage = z.infer<typeof postImageSchema>;
-
-export const postSchema = z.object({
-  id: z.string(),
-  caption: z.string().nullable(),
+  description: z.string(),
   createdAt: z.string(),
-  author: publicUserSchema,
-  images: z.array(postImageSchema),
-  recipe: recipeRefSchema,
-  reactions: z.object({
-    total: z.number(),
-    byEmoji: z.record(z.string(), z.number()),
-    mine: z.string().nullable(),
-  }),
-  commentCount: z.number(),
+  imageUrl: z.string(),
+  owner: userSummarySchema,
+  categories: z.array(recipeCategorySchema),
 });
-export type Post = z.infer<typeof postSchema>;
+export type SavedRecipe = z.infer<typeof savedRecipeSchema>;
 
-export const commentSchema = z.object({
-  id: z.string(),
-  content: z.string(),
-  createdAt: z.string(),
-  author: publicUserSchema,
-});
-export type Comment = z.infer<typeof commentSchema>;
-
-// GET/POST /users/me/collections
 export const collectionSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -188,8 +142,49 @@ export const collectionSchema = z.object({
 });
 export type Collection = z.infer<typeof collectionSchema>;
 
-export const uploadUrlSchema = z.object({
+export const imagePresetSchema = z.object({
+  slug: z.string(),
+  label: z.string(),
+  url: z.string(),
+});
+export type ImagePreset = z.infer<typeof imagePresetSchema>;
+
+export const uploadTicketSchema = z.object({
   uploadUrl: z.string(),
   storageKey: z.string(),
 });
-export type UploadUrlResult = z.infer<typeof uploadUrlSchema>;
+export type UploadTicket = z.infer<typeof uploadTicketSchema>;
+
+export const reactionSummarySchema = z.object({
+  total: z.number(),
+  byEmoji: z.record(z.string(), z.number()),
+  /** The viewer's own emoji, or null when they have not reacted. */
+  mine: z.string().nullable(),
+});
+export type ReactionSummary = z.infer<typeof reactionSummarySchema>;
+
+export const postSchema = z.object({
+  id: z.string(),
+  caption: z.string().nullable(),
+  createdAt: z.string(),
+  author: userSummarySchema,
+  images: z.array(z.object({ id: z.string(), url: z.string() })),
+  recipe: z.object({
+    id: z.string(),
+    title: z.string(),
+    nutrition: nutritionSchema,
+    isSaved: z.boolean(),
+  }),
+  reactions: reactionSummarySchema,
+  commentCount: z.number(),
+});
+export type Post = z.infer<typeof postSchema>;
+
+export const commentSchema = z.object({
+  id: z.string(),
+  postId: z.string(),
+  content: z.string(),
+  createdAt: z.string(),
+  author: userSummarySchema,
+});
+export type Comment = z.infer<typeof commentSchema>;

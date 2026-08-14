@@ -1,197 +1,178 @@
-import { useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Link } from 'expo-router';
-import { useRecipes } from '../../src/hooks/useRecipes';
-import { useUserSearch } from '../../src/hooks/useUserSearch';
-import { useCategories } from '../../src/hooks/useCategories';
-import { RecipeCard } from '../../src/components/RecipeCard';
-import { Avatar } from '../../src/components/Avatar';
-import { EmptyState, ErrorState, LoadingState } from '../../src/components/EmptyState';
-import { FilterButton, FilterSheet } from '../../src/components/FilterSheet';
-import { ApiError } from '../../src/api/client';
-import type { RecipeSort } from '../../src/api/recipes.api';
+import React, { useEffect, useState } from 'react';
+import { FlatList, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
-type Mode = 'recipes' | 'users';
+import { useCategories } from '../../src/api/catalog';
+import { flattenPages } from '../../src/api/paging';
+import { useRecipeSearch, type RecipeSort } from '../../src/api/recipes';
+import { useUserSearch } from '../../src/api/users';
+import { RecipeTile } from '../../src/features/recipes/RecipeTile';
+import { UserRow } from '../../src/features/users/UserRow';
+import { Chip } from '../../src/ui/Chip';
+import { EmptyState } from '../../src/ui/EmptyState';
+import { Field } from '../../src/ui/Field';
+import { Screen } from '../../src/ui/Screen';
+import { SegmentedControl } from '../../src/ui/SegmentedControl';
+import { StateView } from '../../src/ui/StateView';
+import { space } from '../../src/theme/theme';
+
+type DiscoverTab = 'recipes' | 'people';
+
+const TAB_OPTIONS: { value: DiscoverTab; label: string }[] = [
+  { value: 'recipes', label: 'Recipes' },
+  { value: 'people', label: 'People' },
+];
+
+const SORT_OPTIONS: { value: RecipeSort; label: string }[] = [
+  { value: 'newest', label: 'Newest' },
+  { value: 'oldest', label: 'Oldest' },
+  { value: 'popular', label: 'Popular' },
+];
 
 export default function DiscoverScreen() {
-  const [mode, setMode] = useState<Mode>('recipes');
   const [search, setSearch] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [tab, setTab] = useState<DiscoverTab>('recipes');
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [sort, setSort] = useState<RecipeSort>('newest');
-  const [isFilterVisible, setIsFilterVisible] = useState(false);
 
-  const categoriesQuery = useCategories();
-  const recipesQuery = useRecipes(search, selectedCategories, sort);
-  const usersQuery = useUserSearch(search);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  function toggleCategory(slug: string) {
-    setSelectedCategories((current) =>
-      current.includes(slug) ? current.filter((s) => s !== slug) : [...current, slug],
-    );
+  const { width } = useWindowDimensions();
+  const tileWidth = (width - space.lg * 2 - space.md) / 2;
+
+  const categories = useCategories();
+  const recipes = useRecipeSearch(debouncedSearch, selectedSlugs, sort);
+  const recipeItems = flattenPages(recipes.data);
+
+  const users = useUserSearch(debouncedSearch);
+  const userItems = flattenPages(users.data);
+
+  function toggleSlug(slug: string) {
+    setSelectedSlugs((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]));
   }
-
-  function clearFilters() {
-    setSelectedCategories([]);
-    setSort('newest');
-  }
-
-  const recipes = recipesQuery.data?.pages.flatMap((page) => page.items) ?? [];
-  const users = usersQuery.data?.items ?? [];
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Discover</Text>
-
-      <View style={styles.modeRow}>
-        <ModeButton label="Recipes" active={mode === 'recipes'} onPress={() => setMode('recipes')} />
-        <ModeButton label="Users" active={mode === 'users'} onPress={() => setMode('users')} />
+    <Screen>
+      <View style={styles.searchWrap}>
+        <Field
+          label="Search"
+          placeholder="Recipes, or people"
+          value={search}
+          onChangeText={setSearch}
+        />
       </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder={mode === 'recipes' ? 'Search recipes' : 'Search users'}
-        value={search}
-        onChangeText={setSearch}
-        autoCapitalize="none"
-      />
+      <View style={styles.segmentWrap}>
+        <SegmentedControl options={TAB_OPTIONS} value={tab} onChange={(value) => setTab(value as DiscoverTab)} />
+      </View>
 
-      {mode === 'recipes' ? (
-        <FilterButton activeCount={selectedCategories.length} onPress={() => setIsFilterVisible(true)} />
-      ) : null}
+      {tab === 'recipes' ? (
+        <>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipScroll}
+            contentContainerStyle={styles.chipRow}
+          >
+            {(categories.data ?? []).map((category) => (
+              <Chip
+                key={category.id}
+                label={category.name}
+                selected={selectedSlugs.includes(category.slug)}
+                onPress={() => toggleSlug(category.slug)}
+              />
+            ))}
+          </ScrollView>
 
-      {mode === 'recipes' ? (
-        recipesQuery.isLoading ? (
-          <LoadingState />
-        ) : recipesQuery.isError ? (
-          <ErrorState
-            message={recipesQuery.error instanceof ApiError ? recipesQuery.error.message : 'Could not search recipes.'}
-            onRetry={recipesQuery.refetch}
-          />
-        ) : recipes.length === 0 ? (
-          <EmptyState title="No recipes found" message="Try a different search or category." />
-        ) : (
-          <FlatList
-            data={recipes}
-            keyExtractor={(recipe) => recipe.id}
-            renderItem={({ item }) => <RecipeCard recipe={item} />}
-            contentContainerStyle={styles.list}
-            onEndReachedThreshold={0.4}
-            onEndReached={() => {
-              if (recipesQuery.hasNextPage && !recipesQuery.isFetchingNextPage) {
-                recipesQuery.fetchNextPage();
+          <View style={[styles.chipRow, styles.sortRow]}>
+            {SORT_OPTIONS.map((option) => (
+              <Chip
+                key={option.value}
+                label={option.label}
+                selected={sort === option.value}
+                onPress={() => setSort(option.value)}
+              />
+            ))}
+          </View>
+
+          <StateView isLoading={recipes.isLoading} error={recipes.error} onRetry={() => recipes.refetch()}>
+            <FlatList
+              style={styles.list}
+              data={recipeItems}
+              numColumns={2}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.recipeGrid}
+              columnWrapperStyle={styles.recipeRow}
+              renderItem={({ item }) => <RecipeTile recipe={item} width={tileWidth} />}
+              onEndReached={() => {
+                if (recipes.hasNextPage && !recipes.isFetchingNextPage) recipes.fetchNextPage();
+              }}
+              onEndReachedThreshold={0.5}
+              ListEmptyComponent={
+                recipes.isLoading ? null : (
+                  <EmptyState title="No recipes match" body="Try fewer filters, or a different word." />
+                )
               }
-            }}
-            ListFooterComponent={recipesQuery.isFetchingNextPage ? <ActivityIndicator style={styles.footerSpinner} /> : null}
-          />
-        )
-      ) : usersQuery.isLoading ? (
-        <LoadingState />
-      ) : usersQuery.isError ? (
-        <ErrorState
-          message={usersQuery.error instanceof ApiError ? usersQuery.error.message : 'Could not search users.'}
-          onRetry={usersQuery.refetch}
-        />
-      ) : search.length === 0 ? (
-        <EmptyState title="Search for people" message="Type a username to find them." />
-      ) : users.length === 0 ? (
-        <EmptyState title="No users found" />
+            />
+          </StateView>
+        </>
+      ) : debouncedSearch.length === 0 ? (
+        <EmptyState title="Find people to follow" body="Search for a cook by username." />
       ) : (
-        <FlatList
-          data={users}
-          keyExtractor={(user) => user.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <Link href={{ pathname: '/user/[id]', params: { id: item.id } }} asChild>
-              <TouchableOpacity style={styles.userRow}>
-                <Avatar uri={item.profileImage} username={item.username} size="small" />
-                <Text style={styles.username}>{item.username}</Text>
-              </TouchableOpacity>
-            </Link>
-          )}
-        />
+        <StateView isLoading={users.isLoading} error={users.error} onRetry={() => users.refetch()}>
+          <FlatList
+            style={styles.list}
+            data={userItems}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => <UserRow user={item} />}
+            onEndReached={() => {
+              if (users.hasNextPage && !users.isFetchingNextPage) users.fetchNextPage();
+            }}
+            onEndReachedThreshold={0.5}
+          />
+        </StateView>
       )}
-
-      <FilterSheet
-        visible={isFilterVisible}
-        onClose={() => setIsFilterVisible(false)}
-        categories={categoriesQuery.data ?? []}
-        selectedCategories={selectedCategories}
-        onToggleCategory={toggleCategory}
-        onClearAll={clearFilters}
-        sort={sort}
-        onChangeSort={setSort}
-      />
-    </View>
-  );
-}
-
-function ModeButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <TouchableOpacity style={[styles.modeButton, active && styles.modeButtonActive]} onPress={onPress}>
-      <Text style={[styles.modeButtonText, active && styles.modeButtonTextActive]}>{label}</Text>
-    </TouchableOpacity>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFBF5',
-    paddingHorizontal: 16,
-    paddingTop: 12,
+  searchWrap: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.sm,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#2B2620',
-    marginBottom: 12,
+  segmentWrap: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
   },
-  modeRow: {
+  // A ScrollView defaults to flexGrow 1, so a horizontal one in a column
+  // layout stretches vertically and opens a gap under the chips. It should
+  // only ever be as tall as one row of chips.
+  chipScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  chipRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
+    gap: space.sm,
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
   },
-  modeButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F5F0E8',
-  },
-  modeButtonActive: {
-    backgroundColor: '#B5541A',
-  },
-  modeButtonText: {
-    fontWeight: '600',
-    color: '#6B6155',
-  },
-  modeButtonTextActive: {
-    color: '#FFFFFF',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#E5DDD0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 10,
+  sortRow: {
+    paddingBottom: space.md,
   },
   list: {
-    paddingBottom: 24,
+    flex: 1,
   },
-  footerSpinner: {
-    marginVertical: 16,
+  recipeGrid: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    paddingBottom: space.xl,
   },
-  userRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-  },
-  username: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#2B2620',
+  recipeRow: {
+    gap: space.md,
   },
 });

@@ -1,202 +1,163 @@
-import { useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Link } from 'expo-router';
-import { useCookbook } from '../../src/hooks/useCookbook';
-import { useCategories } from '../../src/hooks/useCategories';
-import { useCollections, useCreateCollection } from '../../src/hooks/useCollections';
-import { RecipeCard } from '../../src/components/RecipeCard';
-import { EmptyState, ErrorState, LoadingState } from '../../src/components/EmptyState';
-import { FilterButton, FilterSheet } from '../../src/components/FilterSheet';
-import { TextPromptModal } from '../../src/components/TextPromptModal';
-import { CollectionPickerModal } from '../../src/components/CollectionPickerModal';
-import { ApiError } from '../../src/api/client';
+import { router } from 'expo-router';
+import React, { useState } from 'react';
+import { FlatList, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+
+import { useCategories } from '../../src/api/catalog';
+import { useCookbook, useToggleSave } from '../../src/api/cookbook';
+import { flattenPages } from '../../src/api/paging';
+import { CollectionPickerSheet } from '../../src/features/collections/CollectionPickerSheet';
+import { CollectionRail } from '../../src/features/collections/CollectionRail';
+import { RecipeTile } from '../../src/features/recipes/RecipeTile';
+import { Chip } from '../../src/ui/Chip';
+import { EmptyState } from '../../src/ui/EmptyState';
+import { Screen } from '../../src/ui/Screen';
+import { Sheet } from '../../src/ui/Sheet';
+import { StateView } from '../../src/ui/StateView';
+import { Text } from '../../src/ui/Text';
+import { space } from '../../src/theme/theme';
 
 export default function CookbookScreen() {
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [isFilterVisible, setIsFilterVisible] = useState(false);
-  const [isCreatingCollection, setIsCreatingCollection] = useState(false);
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
+  const [longPressedRecipeId, setLongPressedRecipeId] = useState<string | null>(null);
   const [pickerRecipeId, setPickerRecipeId] = useState<string | null>(null);
 
-  const categoriesQuery = useCategories();
-  const cookbookQuery = useCookbook(selectedCategories);
-  const collectionsQuery = useCollections();
-  const createCollection = useCreateCollection();
+  const { width } = useWindowDimensions();
+  const tileWidth = (width - space.lg * 2 - space.md) / 2;
 
-  function toggleCategory(slug: string) {
-    setSelectedCategories((current) =>
-      current.includes(slug) ? current.filter((s) => s !== slug) : [...current, slug],
-    );
+  const categories = useCategories();
+  const cookbook = useCookbook(selectedSlugs);
+  const recipeItems = flattenPages(cookbook.data);
+  const toggleSave = useToggleSave();
+
+  function toggleSlug(slug: string) {
+    setSelectedSlugs((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]));
   }
 
-  const recipes = cookbookQuery.data?.pages.flatMap((page) => page.items) ?? [];
+  function handleRemove() {
+    if (longPressedRecipeId) toggleSave.mutate({ recipeId: longPressedRecipeId, saved: false });
+    setLongPressedRecipeId(null);
+  }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Cookbook</Text>
-        <Link href="/recipe/new" asChild>
-          <TouchableOpacity style={styles.newRecipeButton}>
-            <Text style={styles.newRecipeButtonText}>+ New recipe</Text>
-          </TouchableOpacity>
-        </Link>
+    <Screen>
+      <View style={styles.titleRow}>
+        <Text variant="displayLg">Cookbook</Text>
       </View>
 
-      <FilterButton activeCount={selectedCategories.length} onPress={() => setIsFilterVisible(true)} />
+      <CollectionRail
+        onOpenCollection={(id) => router.push({ pathname: '/collection/[id]', params: { id } })}
+      />
 
-      <View style={styles.collectionsSection}>
-        <Text style={styles.sectionLabel}>Collections</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipScroll}
+        contentContainerStyle={styles.chipRow}
+      >
+        {(categories.data ?? []).map((category) => (
+          <Chip
+            key={category.id}
+            label={category.name}
+            selected={selectedSlugs.includes(category.slug)}
+            onPress={() => toggleSlug(category.slug)}
+          />
+        ))}
+      </ScrollView>
+
+      <StateView isLoading={cookbook.isLoading} error={cookbook.error} onRetry={() => cookbook.refetch()}>
         <FlatList
-          horizontal
-          data={collectionsQuery.data ?? []}
-          keyExtractor={(collection) => collection.id}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.collectionsRow}
+          style={styles.list}
+          data={recipeItems}
+          numColumns={2}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.recipeGrid}
+          columnWrapperStyle={styles.recipeRow}
           renderItem={({ item }) => (
-            <Link href={{ pathname: '/collection/[id]', params: { id: item.id } }} asChild>
-              <TouchableOpacity style={styles.collectionChip}>
-                <Text style={styles.collectionName} numberOfLines={1}>
-                  {item.name}
-                </Text>
-                <Text style={styles.collectionCount}>{item.recipeCount}</Text>
-              </TouchableOpacity>
-            </Link>
+            <RecipeTile
+              recipe={item}
+              width={tileWidth}
+              onLongPress={() => setLongPressedRecipeId(item.id)}
+            />
           )}
-          ListFooterComponent={
-            <TouchableOpacity style={styles.newCollectionChip} onPress={() => setIsCreatingCollection(true)}>
-              <Text style={styles.newCollectionChipText}>+ New collection</Text>
-            </TouchableOpacity>
+          onEndReached={() => {
+            if (cookbook.hasNextPage && !cookbook.isFetchingNextPage) cookbook.fetchNextPage();
+          }}
+          onEndReachedThreshold={0.5}
+          ListEmptyComponent={
+            cookbook.isLoading ? null : (
+              <EmptyState
+                title="Nothing saved yet"
+                body="Tap the bookmark on any recipe to keep it here."
+                actionLabel="Browse recipes"
+                onAction={() => router.push('/discover')}
+              />
+            )
           }
         />
-      </View>
+      </StateView>
 
-      {cookbookQuery.isLoading ? (
-        <LoadingState />
-      ) : cookbookQuery.isError ? (
-        <ErrorState
-          message={cookbookQuery.error instanceof ApiError ? cookbookQuery.error.message : 'Could not load your cookbook.'}
-          onRetry={cookbookQuery.refetch}
-        />
-      ) : recipes.length === 0 ? (
-        <EmptyState title="No saved recipes yet" message="Save recipes you like to find them here." />
-      ) : (
-        <FlatList
-          data={recipes}
-          keyExtractor={(recipe) => recipe.id}
-          renderItem={({ item }) => <RecipeCard recipe={item} onAddToCollection={() => setPickerRecipeId(item.id)} />}
-          contentContainerStyle={styles.list}
-          onEndReachedThreshold={0.4}
-          onEndReached={() => {
-            if (cookbookQuery.hasNextPage && !cookbookQuery.isFetchingNextPage) {
-              cookbookQuery.fetchNextPage();
-            }
+      <Sheet
+        visible={longPressedRecipeId !== null}
+        onClose={() => setLongPressedRecipeId(null)}
+        heightRatio={0.28}
+      >
+        <RowAction
+          label="Add to a collection"
+          onPress={() => {
+            setPickerRecipeId(longPressedRecipeId);
+            setLongPressedRecipeId(null);
           }}
-          ListFooterComponent={cookbookQuery.isFetchingNextPage ? <ActivityIndicator style={styles.footerSpinner} /> : null}
         />
-      )}
+        <RowAction label="Remove from cookbook" danger onPress={handleRemove} />
+      </Sheet>
 
-      <FilterSheet
-        visible={isFilterVisible}
-        onClose={() => setIsFilterVisible(false)}
-        categories={categoriesQuery.data ?? []}
-        selectedCategories={selectedCategories}
-        onToggleCategory={toggleCategory}
-        onClearAll={() => setSelectedCategories([])}
-      />
+      <CollectionPickerSheet recipeId={pickerRecipeId} onClose={() => setPickerRecipeId(null)} />
+    </Screen>
+  );
+}
 
-      <TextPromptModal
-        visible={isCreatingCollection}
-        title="New collection"
-        submitLabel="Create"
-        onClose={() => setIsCreatingCollection(false)}
-        onSubmit={(name) => createCollection.mutateAsync(name)}
-      />
-
-      {pickerRecipeId ? (
-        <CollectionPickerModal
-          visible={pickerRecipeId !== null}
-          recipeId={pickerRecipeId}
-          onClose={() => setPickerRecipeId(null)}
-        />
-      ) : null}
-    </View>
+function RowAction({ label, onPress, danger }: { label: string; onPress: () => void; danger?: boolean }) {
+  return (
+    <Pressable style={styles.actionRow} accessibilityRole="button" accessibilityLabel={label} onPress={onPress}>
+      <Text variant="strong" color={danger ? 'danger' : 'text'}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFBF5',
-    paddingHorizontal: 16,
-    paddingTop: 12,
+  titleRow: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.sm,
+    paddingBottom: space.sm,
   },
-  headerRow: {
+  // A ScrollView defaults to flexGrow 1, so a horizontal one in a column
+  // layout stretches vertically and opens a gap under the chips.
+  chipScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  chipRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#2B2620',
-  },
-  newRecipeButton: {
-    backgroundColor: '#B5541A',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  newRecipeButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  collectionsSection: {
-    marginBottom: 12,
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B6155',
-    marginBottom: 8,
-  },
-  collectionsRow: {
-    gap: 10,
-  },
-  collectionChip: {
-    backgroundColor: '#F5F0E8',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    maxWidth: 160,
-  },
-  collectionName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#2B2620',
-  },
-  collectionCount: {
-    fontSize: 12,
-    color: '#8A7F70',
-    marginTop: 2,
-  },
-  newCollectionChip: {
-    justifyContent: 'center',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E5DDD0',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  newCollectionChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#B5541A',
+    gap: space.sm,
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
   },
   list: {
-    paddingBottom: 24,
+    flex: 1,
   },
-  footerSpinner: {
-    marginVertical: 16,
+  recipeGrid: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    paddingBottom: space.xl,
+  },
+  recipeRow: {
+    gap: space.md,
+  },
+  actionRow: {
+    height: 56,
+    paddingHorizontal: space.lg,
+    justifyContent: 'center',
   },
 });

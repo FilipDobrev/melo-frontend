@@ -1,106 +1,87 @@
-# Melo (frontend)
+# Melo — mobile app
 
-Expo + React Native + TypeScript client for the Melo API, targeting iOS, Android and Web
-from a single codebase via [expo-router](https://docs.expo.dev/router/introduction/).
-
-## Stack
-
-- **Expo SDK 57**, React Native, TypeScript (`strict: true`, no `any`).
-- **expo-router** - file-based routing under `app/`, typed routes enabled.
-- **@tanstack/react-query** - server state, caching and pagination (`useInfiniteQuery`
-  for every paginated list; the app never fetches "everything" up front).
-- **zod** - every API response is parsed against a schema in `src/api/schemas.ts`
-  before the app touches it.
-- **expo-secure-store** for the refresh token on iOS/Android (Keychain/Keystore-backed).
-  On web, where SecureStore has no equivalent, it falls back to `localStorage`
-  (see `src/lib/storage.ts` - this is a documented, intentional weaker guarantee on web).
-- **fetch**, not axios - the client wrapper (`src/api/client.ts`) is one function with
-  token attachment, single-flight refresh-on-401, and JSON parsing. Axios buys
-  interceptors and a bigger bundle for no capability fetch doesn't already give us here.
-- **expo-image-picker** / **expo-image** for picking and rendering photos.
-- Plain **React Native `StyleSheet`** - no UI kit, no NativeWind.
+Expo + React Native + Expo Router. A cooking-first social app: you write
+recipes, save them to a cookbook, cook them in a guided mode, and post the
+result to a feed your followers see.
 
 ## Running it
 
 ```bash
-npm install
-npx expo start          # then press i / a / w, or scan the QR code with Expo Go
-npx expo start --web    # web only
-npx expo start --ios    # requires macOS/Xcode, or use Expo Go
-npx expo start --android
+cd backend && npm run dev     # must be up first, defaults to :4000
+cd frontend && npm start
 ```
 
-## Pointing at the backend
+`EXPO_PUBLIC_API_URL` in `.env` points at the API and defaults to
+`http://localhost:4000/api/v1`. On a physical device, swap `localhost` for
+your machine's LAN address or the app cannot reach the backend.
 
-The API base URL is read from `EXPO_PUBLIC_API_URL` (see `src/lib/env.ts`). Copy
-`.env.example` to `.env` and edit it:
+## Design
 
-```bash
-cp .env.example .env
+The visual direction and every component contract live in
+[BUILD-SPEC.md](./BUILD-SPEC.md). The short version:
+
+Melo's numbers are real — the backend computes actual grams and macros for
+every recipe — so the app displays them like an instrument. Every quantity is
+set in DM Mono with tabular figures, usually on a recessed slab, like a
+kitchen scale readout. Everything around that stays quiet: paper ground, ink
+text, hairline rules, one hot accent for things you press (saffron) and one
+deep accent for things you scan (basil).
+
+Two structural signatures carry it:
+
+- **The COOKED stamp** — every post card has a strip under its photo naming
+  the recipe it documents, with its macros and the save toggle. It is why you
+  can save a recipe straight from the feed.
+- **The dotted leader** — ingredient rows run `name ······· 45 g`, the way a
+  recipe card does.
+
+**All tokens live in `src/theme/theme.ts`.** That is the one file to edit to
+re-skin the app; nothing else hardcodes a colour or a font size. Typefaces are
+registered under role names in `src/theme/fonts.ts`, so swapping a family is a
+one-line change.
+
+## Layout
+
+```
+app/                     routes (expo-router). Thin: params in, hooks, feature component out.
+src/theme/               design tokens + font loading
+src/api/                 one module per domain, fetchers and react-query hooks together
+src/auth/                session context
+src/ui/                  dumb primitives. No data fetching, no navigation.
+src/features/<domain>/   composed components that know about domain types
+src/lib/                 formatting, image upload
 ```
 
-```
-EXPO_PUBLIC_API_URL=http://localhost:3000/api/v1
-```
+### Conventions worth knowing
 
-`EXPO_PUBLIC_*` variables are inlined at build/start time by Expo. If it's unset the
-app falls back to `http://localhost:3000/api/v1`. When testing on a physical device
-over Expo Go, `localhost` means the device itself - point it at your machine's LAN IP
-instead (e.g. `http://192.168.1.20:3000/api/v1`).
+- **Every response is validated.** `request()` takes a zod schema and parses
+  before the app touches the data, so a backend change surfaces as one loud
+  contract error rather than scattered undefined reads.
+- **Tokens.** The access token is memory-only; the refresh token goes to the
+  keychain (localStorage on web). On a 401 the client refreshes once, sharing a
+  single in-flight promise across concurrent failures, then retries.
+- **Pagination** is cursor-based everywhere: `usePagedQuery` + `flattenPages`.
+- **`imageKey` is write-only.** Send it on create/update; never read it back and
+  never build an image URL client-side. Render the `imageUrl` the server gives.
+- **Reactions and saves are optimistic inside the hooks.** Components render
+  from query data and hold no mirrored local state.
+- The bottom sheet is hand-built from `Modal` + `Animated` + `PanResponder`
+  (`src/ui/Sheet.tsx`) rather than pulling in a gesture library.
 
-## Project structure
+## Known gaps
 
-```
-app/                     expo-router screens (file-based routing)
-  (auth)/                login, register - redirects to (tabs) once authenticated
-  (tabs)/                feed, discover, cookbook, profile
-  post/[id].tsx           post detail: images, reactions, paginated comments
-  post/new.tsx            create a post (image upload + optional recipe attach)
-  recipe/[id].tsx         recipe detail: ingredients, nutrition, save/edit/delete
-  recipe/new.tsx          create/edit a recipe (also handles ?editId=)
-  user/[id].tsx           public profile: follow, posts, recipes
-
-src/
-  api/
-    client.ts             fetch wrapper: base URL, auth header, 401 refresh-and-retry
-    schemas.ts             zod schemas mirroring API.md
-    *.api.ts                one module per resource (auth, users, recipes, ...)
-    pagination.ts           shared Paginated<T>/PageParams types
-  hooks/                  react-query hooks (useFeed, useRecipe, useToggleFollow, ...)
-  components/             presentational components (PostCard, RecipeCard, ...)
-  context/AuthContext.tsx current user + login/register/logout, token persistence
-  lib/                    env, secure storage wrapper, token store, unit formatting
-```
-
-## Auth token handling
-
-- The **access token** lives in memory only (`src/lib/tokenStore.ts`) - it's short-lived
-  and re-derived on every app start via a refresh call, so persisting it buys nothing.
-- The **refresh token** is persisted via `secureStorage` (SecureStore on native,
-  localStorage on web).
-- `src/api/client.ts` de-duplicates concurrent refreshes: if ten requests hit a 401 at
-  once, only one `/auth/refresh` call is made and all ten retry against its result.
-- A failed refresh (expired/revoked refresh token) clears the session and the router
-  guards in `(auth)/_layout.tsx` and `(tabs)/_layout.tsx` redirect to `/login`.
-
-## What's stubbed / incomplete
-
-- **Profile picture editing** is a plain "paste an image URL" text field. API.md only
-  documents a presigned-upload flow for *post* images (`/posts/images/upload-url`);
-  there's no documented equivalent for avatars, so wiring the image picker through an
-  undocumented endpoint would have been a guess. Swapping in the picker + upload flow
-  is a small change once that endpoint is confirmed.
-- **Adding a brand-new product** (not just searching existing ones) isn't exposed in
-  the recipe form. `POST /products` exists in the API and `src/api/products.api.ts`
-  already wraps it, but there's no screen for it yet.
-- Followers/following **list screens** aren't wired up as their own routes - the API
-  client functions (`getFollowers`, `getFollowing`) exist and the profile screen shows
-  the counts, but tapping through to the full lists isn't built.
-- No automated tests. There is no running backend to test against per the task
-  brief; correctness was verified by matching API.md's documented shapes in the zod
-  schemas and by `npx tsc --noEmit` passing with zero errors.
-- A few response shapes aren't fully pinned down in API.md (e.g. the exact field
-  names on `GET /users/:userId` for follower/following counts, or the comment
-  payload shape). Reasonable field names were chosen and are called out with a
-  comment at the point of definition in `src/api/schemas.ts` - these are the first
-  place to check if the real backend returns a different shape.
+- **Profile pictures cannot be uploaded.** `PATCH /users/me` takes
+  `profileImage` as a URL, and the backend exposes no way to turn an upload
+  storage key into a public URL (`publicUrlFor` is server-side only). The edit
+  screen therefore takes a pasted URL and says so. Closing this needs a small
+  backend change: either return a public URL alongside the upload ticket, or
+  accept a storage key on `PATCH /users/me`.
+- **Follower and following lists show no follow button.** Those endpoints
+  return a user summary without an `isFollowing` flag, so a button there would
+  have to guess. Rows navigate to the profile, where the state is known.
+- **Post counts on a profile** are the number loaded so far, rendered with a
+  trailing `+` while more pages exist — the API exposes no total.
+- **The collection picker cannot show existing membership.** No endpoint says
+  whether a recipe is already in a collection, so rows mark themselves "Added"
+  only after you add them in that session.
+- No tests yet.

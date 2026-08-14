@@ -1,136 +1,136 @@
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useCollections, useCollectionRecipes, useRenameCollection, useDeleteCollection } from '../../src/hooks/useCollections';
-import { RecipeCard } from '../../src/components/RecipeCard';
-import { TextPromptModal } from '../../src/components/TextPromptModal';
-import { EmptyState, ErrorState, LoadingState } from '../../src/components/EmptyState';
-import { ApiError } from '../../src/api/client';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useState } from 'react';
+import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
+
+import { errorMessage } from '../../src/api/client';
+import {
+  useCollectionRecipes,
+  useCollections,
+  useRemoveRecipeFromCollection,
+  useRenameCollection,
+} from '../../src/api/cookbook';
+import { flattenPages } from '../../src/api/paging';
+import { RecipeTile } from '../../src/features/recipes/RecipeTile';
+import { Button } from '../../src/ui/Button';
+import { ConfirmDialog } from '../../src/ui/ConfirmDialog';
+import { EmptyState } from '../../src/ui/EmptyState';
+import { Field } from '../../src/ui/Field';
+import { IconButton } from '../../src/ui/IconButton';
+import { Screen } from '../../src/ui/Screen';
+import { ScreenHeader } from '../../src/ui/ScreenHeader';
+import { Sheet } from '../../src/ui/Sheet';
+import { StateView } from '../../src/ui/StateView';
+import { space } from '../../src/theme/theme';
 
 export default function CollectionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const collections = useCollections();
+  const collection = (collections.data ?? []).find((item) => item.id === id);
+  const recipes = useCollectionRecipes(id);
+  const removeRecipe = useRemoveRecipeFromCollection(id);
+  const renameCollection = useRenameCollection();
 
-  const collectionsQuery = useCollections();
-  const recipesQuery = useCollectionRecipes(id);
-  const renameCollection = useRenameCollection(id);
-  const deleteCollection = useDeleteCollection();
+  const [isRenameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState(collection?.name ?? '');
+  const [renameError, setRenameError] = useState<string>();
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
 
-  const collection = collectionsQuery.data?.find((item) => item.id === id);
-  const recipes = recipesQuery.data?.pages.flatMap((page) => page.items) ?? [];
+  const { width } = useWindowDimensions();
+  const tileWidth = (width - space.lg * 2 - space.md) / 2;
+  const recipeItems = flattenPages(recipes.data);
 
-  async function handleDelete() {
-    setDeleteError(null);
+  function openRename() {
+    setRenameValue(collection?.name ?? '');
+    setRenameError(undefined);
+    setRenameOpen(true);
+  }
+
+  async function handleRename() {
+    setRenameError(undefined);
     try {
-      await deleteCollection.mutateAsync(id);
-      router.back();
-    } catch (err) {
-      setDeleteError(err instanceof ApiError ? err.message : 'Could not delete this collection.');
+      await renameCollection.mutateAsync({ collectionId: id, name: renameValue });
+      setRenameOpen(false);
+    } catch (error) {
+      setRenameError(errorMessage(error));
     }
   }
 
+  function handleRemove() {
+    if (removeTarget) removeRecipe.mutate(removeTarget);
+    setRemoveTarget(null);
+  }
+
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: collection?.name ?? 'Collection' }} />
-
-      <View style={styles.headerRow}>
-        <Text style={styles.title} numberOfLines={1}>
-          {collection?.name ?? 'Collection'}
-        </Text>
-        <View style={styles.actionsRow}>
-          <TouchableOpacity onPress={() => setIsRenaming(true)}>
-            <Text style={styles.actionText}>Rename</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleDelete} disabled={deleteCollection.isPending}>
-            <Text style={styles.deleteText}>Delete</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {deleteError ? <Text style={styles.error}>{deleteError}</Text> : null}
-
-      {recipesQuery.isLoading ? (
-        <LoadingState />
-      ) : recipesQuery.isError ? (
-        <ErrorState
-          message={recipesQuery.error instanceof ApiError ? recipesQuery.error.message : 'Could not load this collection.'}
-          onRetry={recipesQuery.refetch}
-        />
-      ) : recipes.length === 0 ? (
-        <EmptyState title="No recipes yet" message="Add recipes to this collection from your cookbook." />
-      ) : (
-        <FlatList
-          data={recipes}
-          keyExtractor={(recipe) => recipe.id}
-          renderItem={({ item }) => <RecipeCard recipe={item} />}
-          contentContainerStyle={styles.list}
-          onEndReachedThreshold={0.4}
-          onEndReached={() => {
-            if (recipesQuery.hasNextPage && !recipesQuery.isFetchingNextPage) {
-              recipesQuery.fetchNextPage();
-            }
-          }}
-          ListFooterComponent={recipesQuery.isFetchingNextPage ? <ActivityIndicator style={styles.footerSpinner} /> : null}
-        />
-      )}
-
-      <TextPromptModal
-        visible={isRenaming}
-        title="Rename collection"
-        initialValue={collection?.name}
-        submitLabel="Save"
-        onClose={() => setIsRenaming(false)}
-        onSubmit={(name) => renameCollection.mutateAsync(name)}
+    <Screen edges={['top']}>
+      <ScreenHeader
+        title={collection?.name}
+        onBack={() => router.back()}
+        right={<IconButton name="edit-3" label="Rename collection" onPress={openRename} />}
       />
-    </View>
+      <StateView isLoading={recipes.isLoading} error={recipes.error} onRetry={() => recipes.refetch()}>
+        <FlatList
+          style={styles.list}
+          data={recipeItems}
+          numColumns={2}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.grid}
+          columnWrapperStyle={styles.row}
+          renderItem={({ item }) => (
+            <RecipeTile
+              recipe={item}
+              width={tileWidth}
+              onLongPress={() => setRemoveTarget(item.id)}
+            />
+          )}
+          onEndReached={() => {
+            if (recipes.hasNextPage && !recipes.isFetchingNextPage) recipes.fetchNextPage();
+          }}
+          onEndReachedThreshold={0.5}
+          ListEmptyComponent={
+            recipes.isLoading ? null : (
+              <EmptyState
+                title="Nothing here yet"
+                body="Add recipes to this collection from your cookbook."
+              />
+            )
+          }
+        />
+      </StateView>
+
+      <Sheet visible={isRenameOpen} onClose={() => setRenameOpen(false)} title="Rename collection" heightRatio={0.4}>
+        <View style={styles.sheetContent}>
+          <Field label="Name" value={renameValue} onChangeText={setRenameValue} error={renameError} maxLength={60} />
+          <Button title="Save" onPress={handleRename} loading={renameCollection.isPending} stretch />
+        </View>
+      </Sheet>
+
+      <ConfirmDialog
+        visible={removeTarget !== null}
+        title="Remove from collection"
+        body="It stays in your cookbook."
+        confirmLabel="Remove"
+        destructive
+        onConfirm={handleRemove}
+        onCancel={() => setRemoveTarget(null)}
+      />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFBF5',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 12,
-  },
-  title: {
-    flex: 1,
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#2B2620',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  actionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#B5541A',
-  },
-  deleteText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#C0392B',
-  },
-  error: {
-    color: '#C0392B',
-    fontSize: 13,
-    marginBottom: 12,
-  },
   list: {
-    paddingBottom: 24,
+    flex: 1,
   },
-  footerSpinner: {
-    marginVertical: 16,
+  grid: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    paddingBottom: space.xl,
+  },
+  row: {
+    gap: space.md,
+  },
+  sheetContent: {
+    padding: space.lg,
+    gap: space.lg,
   },
 });
