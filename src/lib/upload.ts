@@ -1,40 +1,35 @@
 import type { UploadTicket } from '../api/schemas';
+import { prepareImageForUpload } from './image';
 
-const SUPPORTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+// prepareImageForUpload always re-encodes to JPEG, so the content type is
+// no longer guessed from the picker's output.
+const UPLOAD_CONTENT_TYPE = 'image/jpeg';
 
-const EXTENSION_TYPES: Record<string, string> = {
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-};
-
-/** Storage only accepts these three types; a blob's own MIME type can be empty or wrong. */
-function resolveContentType(blob: Blob, localUri: string): string {
-  if (SUPPORTED_TYPES.has(blob.type)) return blob.type;
-
-  const extension = localUri.split('.').pop()?.toLowerCase().split(/[?#]/)[0];
-  const inferred = extension ? EXTENSION_TYPES[extension] : undefined;
-  if (inferred) return inferred;
-
-  throw new Error('Melo supports JPEG, PNG and WebP images.');
-}
+// Mirrors the backend's limit in backend/src/services/storage.service.ts.
+// Downscaling should make this unreachable; asserting it catches a broken
+// prepareImageForUpload rather than silently uploading a rejected file.
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 /**
- * Uploads one local image and returns its storage key. The presigned PUT
- * signature covers `contentType` and `contentLength`, so both must be the
- * actual measured values from the blob, never estimated or guessed.
+ * Uploads one local image and returns its storage key. The image is
+ * downscaled and re-encoded first (see ./image.ts), both to shrink it and to
+ * strip EXIF/GPS metadata. The presigned PUT signature covers `contentType`
+ * and `contentLength`, so both must be measured from the prepared file that
+ * is actually sent, never the original picker output — otherwise the bytes
+ * PUT won't match what the signature covers and storage returns a 403.
  */
 export async function uploadImage(
   localUri: string,
   requestTicket: (contentType: string, contentLength: number) => Promise<UploadTicket>,
 ): Promise<string> {
-  const response = await fetch(localUri);
+  const preparedUri = await prepareImageForUpload(localUri);
+  const response = await fetch(preparedUri);
   const blob = await response.blob();
 
-  const contentType = resolveContentType(blob, localUri);
+  const contentType = UPLOAD_CONTENT_TYPE;
   const contentLength = blob.size;
   if (contentLength === 0) throw new Error('That image could not be read. Pick it again.');
+  if (contentLength > MAX_UPLOAD_BYTES) throw new Error('That image is too large to upload.');
 
   const ticket = await requestTicket(contentType, contentLength);
 

@@ -10,6 +10,7 @@ export class ApiError extends Error {
     readonly code: string,
     message: string,
     readonly details?: unknown,
+    readonly requestId?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -62,23 +63,34 @@ async function toApiError(response: Response): Promise<ApiError> {
   let code = 'INTERNAL';
   let message = 'Something went wrong. Try again.';
   let details: unknown;
+  let requestId: string | undefined;
 
   try {
     const payload: unknown = await response.json();
     if (payload && typeof payload === 'object' && 'error' in payload) {
       const error = (payload as { error: unknown }).error;
       if (error && typeof error === 'object') {
-        const shape = error as { code?: unknown; message?: unknown; details?: unknown };
+        const shape = error as {
+          code?: unknown;
+          message?: unknown;
+          details?: unknown;
+          requestId?: unknown;
+        };
         if (typeof shape.code === 'string') code = shape.code;
         if (typeof shape.message === 'string') message = shape.message;
         details = shape.details;
+        if (typeof shape.requestId === 'string') requestId = shape.requestId;
       }
     }
   } catch {
     // A non-JSON error body (a proxy timeout page, say) leaves the defaults.
   }
 
-  return new ApiError(response.status, code, message, details);
+  // requestId is only in the body on 5xx (API.md), but the header is sent on
+  // every response, so a malformed 5xx body still leaves something traceable.
+  requestId ??= response.headers.get('X-Request-Id') ?? undefined;
+
+  return new ApiError(response.status, code, message, details, requestId);
 }
 
 /**
@@ -99,11 +111,20 @@ async function runRefresh(): Promise<boolean> {
   const refreshToken = await readRefreshToken();
   if (!refreshToken) return false;
 
-  const response = await fetch(buildUrl('/auth/refresh'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(buildUrl('/auth/refresh'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+  } catch {
+    // A connectivity blip is not evidence the refresh token is dead - only a
+    // real response (or a malformed one) below tells us the session is over.
+    // Signing the user out here would punish them for a dropped network, not
+    // a revoked session.
+    return false;
+  }
 
   if (!response.ok) {
     setAccessToken(null);
@@ -138,18 +159,25 @@ async function send(path: string, options: RequestOptions<unknown>): Promise<Res
   });
 }
 
-export async function request<T>(path: string, options: RequestOptions<T> = {}): Promise<T> {
-  let response: Response;
+/** Wraps a `send()` in the same friendly network error, for the initial call and the post-refresh retry alike. */
+async function sendOrThrowNetworkError(
+  path: string,
+  options: RequestOptions<unknown>,
+): Promise<Response> {
   try {
-    response = await send(path, options);
+    return await send(path, options);
   } catch {
     throw new ApiError(0, 'NETWORK', 'Cannot reach Melo. Check your connection.');
   }
+}
+
+export async function request<T>(path: string, options: RequestOptions<T> = {}): Promise<T> {
+  let response = await sendOrThrowNetworkError(path, options);
 
   if (response.status === 401 && !options.skipAuth) {
     const refreshed = await refreshSession();
     if (refreshed) {
-      response = await send(path, options);
+      response = await sendOrThrowNetworkError(path, options);
     }
   }
 
@@ -165,7 +193,10 @@ export async function request<T>(path: string, options: RequestOptions<T> = {}):
 
 /** Human-readable text for anything thrown by the API layer. */
 export function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
+  if (error instanceof ApiError) {
+    if (error.status === 429) return 'You are doing that too fast. Wait a moment and try again.';
+    return error.message;
+  }
   if (error instanceof ApiContractError) return error.message;
   if (error instanceof Error && error.message) return error.message;
   return 'Something went wrong. Try again.';

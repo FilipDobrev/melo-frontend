@@ -1,10 +1,12 @@
 import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { useAuth, useCurrentUser } from '../../src/auth/AuthContext';
 import { errorMessage } from '../../src/api/client';
-import { useUpdateProfile } from '../../src/api/users';
+import { requestAvatarUpload, useUpdateProfile } from '../../src/api/users';
+import { uploadImage } from '../../src/lib/upload';
 import { Avatar } from '../../src/ui/Avatar';
 import { Button } from '../../src/ui/Button';
 import { Field } from '../../src/ui/Field';
@@ -19,15 +21,19 @@ export default function EditProfileScreen() {
   const updateProfile = useUpdateProfile();
 
   const [username, setUsername] = useState(currentUser?.username ?? '');
-  const [profileImage, setProfileImage] = useState(currentUser?.profileImage ?? '');
   const [usernameError, setUsernameError] = useState<string>();
+  const [pendingImage, setPendingImage] = useState<{ uri: string } | null>(null);
+  const [removeRequested, setRemoveRequested] = useState(false);
   const [serverError, setServerError] = useState<string>();
-  const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
-  // Field exposes no ref/focus method, so "focus the picture field" is done
-  // by remounting it with autoFocus set - a fresh TextInput mount is the only
-  // way this component's contract lets a caller drive focus into it.
-  const [focusPictureRequest, setFocusPictureRequest] = useState(0);
+  const isSaving = isUploading || updateProfile.isPending;
+  const displayedImage = pendingImage
+    ? pendingImage.uri
+    : removeRequested
+      ? null
+      : currentUser?.profileImage;
+  const canRemove = !removeRequested && (pendingImage !== null || Boolean(currentUser?.profileImage));
 
   function validate(): boolean {
     if (username.length < 3 || username.length > 30) {
@@ -38,28 +44,57 @@ export default function EditProfileScreen() {
     return true;
   }
 
+  async function pickFromLibrary() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Photo access needed', 'Melo needs photo access to change your picture.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: false,
+      quality: 1,
+    });
+    if (result.canceled || result.assets.length === 0) return;
+
+    setPendingImage({ uri: result.assets[0].uri });
+    setRemoveRequested(false);
+  }
+
+  function removePicture() {
+    setPendingImage(null);
+    setRemoveRequested(true);
+  }
+
   async function handleSave() {
     setServerError(undefined);
     if (!validate()) return;
 
-    const trimmedImage = profileImage.trim();
-    const originalImage = currentUser?.profileImage ?? '';
-
-    setIsSaving(true);
     try {
+      let storageKey: string | undefined;
+      if (pendingImage) {
+        setIsUploading(true);
+        try {
+          storageKey = await uploadImage(pendingImage.uri, requestAvatarUpload);
+        } catch (uploadError) {
+          throw new Error(`Picture: ${errorMessage(uploadError)}`);
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
       await updateProfile.mutateAsync({
         username,
-        // null clears the picture; omitted leaves it untouched.
-        ...(trimmedImage !== originalImage
-          ? { profileImage: trimmedImage.length > 0 ? trimmedImage : null }
-          : {}),
+        // profileImage in responses is a resolved URL, not a key, so when the
+        // picture wasn't touched it must be omitted rather than echoed back -
+        // sending it would write the deprecated URL form to the server.
+        ...(storageKey ? { profileImage: storageKey } : removeRequested ? { profileImage: null } : {}),
       });
       await refreshUser();
       router.back();
     } catch (error) {
       setServerError(errorMessage(error));
-    } finally {
-      setIsSaving(false);
     }
   }
 
@@ -69,35 +104,30 @@ export default function EditProfileScreen() {
 
       <View style={styles.content}>
         <View style={styles.avatarBlock}>
-          <Avatar uri={currentUser?.profileImage} username={currentUser?.username ?? '?'} size={96} />
+          <Avatar uri={displayedImage} username={currentUser?.username ?? '?'} size={96} />
           <Text
             variant="strong"
             color="accent"
-            onPress={() => setFocusPictureRequest((count) => count + 1)}
+            onPress={isSaving ? undefined : pickFromLibrary}
             accessibilityRole="button"
             accessibilityLabel="Change picture"
+            accessibilityState={{ disabled: isSaving }}
           >
-            Change picture
+            {isUploading ? 'Uploading…' : 'Change picture'}
           </Text>
+          {canRemove && (
+            <Text
+              variant="bodySm"
+              color="textMuted"
+              onPress={isSaving ? undefined : removePicture}
+              accessibilityRole="button"
+              accessibilityLabel="Remove picture"
+              accessibilityState={{ disabled: isSaving }}
+            >
+              Remove picture
+            </Text>
+          )}
         </View>
-
-        {/* Uploading a profile picture directly isn't possible: PATCH /users/me
-            takes a URL, and the backend never exposes a public-URL mapping for
-            a storage key to clients (see storage.service.ts publicUrlFor,
-            which is server-side only). A pasted URL is the honest fallback. */}
-        <Text variant="bodySm" color="textMuted">
-          Uploads aren&apos;t available for profile pictures yet.
-        </Text>
-        <Field
-          key={`picture-${focusPictureRequest}`}
-          label="Picture URL"
-          hint="Paste a link to an image."
-          value={profileImage}
-          onChangeText={setProfileImage}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoFocus={focusPictureRequest > 0}
-        />
 
         <Field
           label="Username"

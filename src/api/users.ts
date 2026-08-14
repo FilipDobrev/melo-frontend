@@ -11,6 +11,7 @@ import {
   publicProfileSchema,
   publicUserSchema,
   recipeSummarySchema,
+  uploadTicketSchema,
   userSummarySchema,
   type AuthResult,
   type Me,
@@ -115,6 +116,14 @@ export function useUserRecipes(userId: string | undefined) {
         query: { cursor, limit: 24 },
         schema: pageSchema(recipeSummarySchema),
       }),
+  });
+}
+
+export function requestAvatarUpload(contentType: string, contentLength: number) {
+  return request('/users/me/avatar/upload-url', {
+    method: 'POST',
+    body: { contentType, contentLength },
+    schema: uploadTicketSchema,
   });
 }
 

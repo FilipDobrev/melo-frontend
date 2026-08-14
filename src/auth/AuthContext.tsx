@@ -1,8 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { z } from 'zod';
 
-import { onSessionLost, request } from '../api/client';
+import { ApiError, onSessionLost } from '../api/client';
 import { readRefreshToken, setAccessToken, writeRefreshToken } from '../api/tokens';
 import { fetchMe, login, logout, register } from '../api/users';
 import type { Me } from '../api/schemas';
@@ -21,8 +20,6 @@ interface AuthValue {
 
 const AuthContext = createContext<AuthValue | null>(null);
 
-const refreshResultSchema = z.object({ accessToken: z.string(), refreshToken: z.string() });
-
 async function clearTokens(): Promise<void> {
   setAccessToken(null);
   await writeRefreshToken(null);
@@ -39,6 +36,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
+    // Refresh tokens are single use and rotate: presenting one that's already
+    // been redeemed is treated as theft and revokes every session for that
+    // user. Refreshing here too, on top of the reactive refresh in
+    // client.ts's request(), would give a cold start two refresh code paths
+    // racing over the same token. So on mount we never refresh directly - we
+    // just call fetchMe() unauthenticated (no access token exists yet), let
+    // it 401, and let client.ts's single-flight refresh-and-retry handle the
+    // rotation the normal way, on demand.
     async function bootstrap() {
       const refreshToken = await readRefreshToken();
       if (refreshToken === null) {
@@ -47,20 +52,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const rotated = await request('/auth/refresh', {
-          method: 'POST',
-          body: { refreshToken },
-          schema: refreshResultSchema,
-          skipAuth: true,
-        });
-        setAccessToken(rotated.accessToken);
-        await writeRefreshToken(rotated.refreshToken);
         const me = await fetchMe();
         if (!cancelled) setSession({ status: 'signedIn', user: me });
-      } catch {
-        // A dead or expired refresh token just means the session is over -
-        // fall back to signed out rather than surfacing an error.
-        await clearTokens();
+      } catch (error) {
+        // Opening the app with no connection must not destroy a perfectly
+        // good session: the refresh token is kept so the next launch can
+        // restore it. Only an answer from the server means the session is
+        // genuinely over, and then the dead token is cleared.
+        const unreachable = error instanceof ApiError && error.code === 'NETWORK';
+        if (!unreachable) await clearTokens();
         if (!cancelled) setSession({ status: 'signedOut' });
       }
     }

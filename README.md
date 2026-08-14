@@ -63,6 +63,15 @@ src/lib/                 formatting, image upload
 - **Pagination** is cursor-based everywhere: `usePagedQuery` + `flattenPages`.
 - **`imageKey` is write-only.** Send it on create/update; never read it back and
   never build an image URL client-side. Render the `imageUrl` the server gives.
+  The same holds for avatars: send the storage key, render the resolved
+  `profileImage` URL that comes back.
+- **Every upload is downscaled and re-encoded first** (`src/lib/image.ts`):
+  JPEG, 1600px on the long edge. Size is the lesser reason. The real one is
+  that re-encoding strips EXIF, which otherwise publishes the GPS coordinates
+  of the user's kitchen with every photo. `uploadImage` is the single choke
+  point, so posts, recipe pictures and avatars all get this automatically.
+  Content length is measured on the *prepared* file — the presigned signature
+  covers the byte count, so measuring the original would fail every PUT.
 - **Reactions and saves are optimistic inside the hooks.** Components render
   from query data and hold no mirrored local state.
 - The bottom sheet is hand-built from `Modal` + `Animated` + `PanResponder`
@@ -70,12 +79,6 @@ src/lib/                 formatting, image upload
 
 ## Known gaps
 
-- **Profile pictures cannot be uploaded.** `PATCH /users/me` takes
-  `profileImage` as a URL, and the backend exposes no way to turn an upload
-  storage key into a public URL (`publicUrlFor` is server-side only). The edit
-  screen therefore takes a pasted URL and says so. Closing this needs a small
-  backend change: either return a public URL alongside the upload ticket, or
-  accept a storage key on `PATCH /users/me`.
 - **Follower and following lists show no follow button.** Those endpoints
   return a user summary without an `isFollowing` flag, so a button there would
   have to guess. Rows navigate to the profile, where the state is known.
