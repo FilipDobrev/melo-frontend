@@ -5,7 +5,7 @@ import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { useSetReaction } from '../../api/posts';
 import type { Post } from '../../api/schemas';
 import { relativeTime } from '../../lib/format';
-import { colors, radius, space } from '../../theme/theme';
+import { colors, space } from '../../theme/theme';
 import { Avatar } from '../../ui/Avatar';
 import { IconButton } from '../../ui/IconButton';
 import { Readout, Text } from '../../ui/Text';
@@ -117,24 +117,20 @@ function PostCardBase({ post, variant = 'feed', onOpenComments, onOpenActions }:
 
       {post.caption !== null && (
         <View style={styles.captionBlock}>
-          <Text
-            variant="body"
-            numberOfLines={variant === 'feed' && !isCaptionExpanded ? 2 : undefined}
+          <Pressable
+            onPress={() => setIsCaptionExpanded(true)}
+            {...(variant === 'feed' && !isCaptionExpanded
+              ? { accessibilityRole: 'button' as const, accessibilityLabel: 'Show full caption' }
+              : {})}
           >
-            <Text variant="strong">{post.author.username} </Text>
-            {post.caption}
-          </Text>
-          {variant === 'feed' && !isCaptionExpanded && (
-            <Pressable
-              onPress={() => setIsCaptionExpanded(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Show full caption"
+            <Text
+              variant="body"
+              numberOfLines={variant === 'feed' && !isCaptionExpanded ? 3 : undefined}
             >
-              <Text variant="body" color="textMuted">
-                more
-              </Text>
-            </Pressable>
-          )}
+              <Text variant="strong">{post.author.username} </Text>
+              {post.caption}
+            </Text>
+          </Pressable>
         </View>
       )}
     </View>
@@ -182,10 +178,6 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   captionBlock: {
-    backgroundColor: colors.slab,
-    borderRadius: radius.md,
     marginHorizontal: space.lg,
-    marginTop: space.xs,
-    padding: space.md,
   },
 });

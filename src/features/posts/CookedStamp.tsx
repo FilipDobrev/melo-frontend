@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.deepTint,
     borderRadius: radius.md,
     marginHorizontal: space.lg,
-    marginTop: space.md,
+    marginTop: space.sm,
     padding: space.md,
   },
   titleRow: {
