@@ -16,10 +16,10 @@ import { ConfirmDialog } from '../../src/ui/ConfirmDialog';
 import { colors, space } from '../../src/theme/theme';
 import { useCurrentUser } from '../../src/auth/AuthContext';
 import { useRecipe, useDeleteRecipe } from '../../src/api/recipes';
-import { useToggleSave } from '../../src/api/cookbook';
 import { CollectionPickerSheet } from '../../src/features/collections/CollectionPickerSheet';
 import { NutritionPanel } from '../../src/features/recipes/NutritionPanel';
 import { IngredientRow } from '../../src/features/recipes/IngredientRow';
+import { SaveRecipeButton } from '../../src/features/recipes/SaveRecipeButton';
 
 /** Sticky bar: space.md top padding + a 52px lg Button + a 1px hairline. */
 const BOTTOM_BAR_HEIGHT = space.md + 52 + 1;
@@ -28,7 +28,6 @@ export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: recipe, isLoading, error, refetch } = useRecipe(id);
   const currentUser = useCurrentUser();
-  const toggleSave = useToggleSave();
   const deleteRecipe = useDeleteRecipe();
 
   const [overflowVisible, setOverflowVisible] = useState(false);
@@ -155,12 +154,7 @@ export default function RecipeDetailScreen() {
                   label="Edit recipe"
                 />
               )}
-              <IconButton
-                name="bookmark"
-                color={recipe.isSaved ? 'accent' : 'text'}
-                onPress={() => toggleSave.mutate({ recipeId: recipe.id, saved: !recipe.isSaved })}
-                label={recipe.isSaved ? 'Remove from cookbook' : 'Save to cookbook'}
-              />
+              <SaveRecipeButton recipeId={recipe.id} isSaved={recipe.isSaved} />
             </View>
 
             <Sheet visible={overflowVisible} onClose={() => setOverflowVisible(false)} heightRatio={isOwner ? 0.42 : 0.21}>

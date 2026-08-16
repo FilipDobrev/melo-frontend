@@ -7,6 +7,7 @@ import {
   Modal,
   PanResponder,
   PanResponderGestureState,
+  Platform,
   Pressable,
   StyleSheet,
   useWindowDimensions,
@@ -119,6 +120,7 @@ export function SquareCropDialog({
   // current values through a ref rather than closing over render state.
   const latestRef = useRef({
     pan,
+    zoom,
     maxPanX: geometry?.maxPanX ?? 0,
     maxPanY: geometry?.maxPanY ?? 0,
     srcW: srcSize?.width ?? 0,
@@ -128,6 +130,7 @@ export function SquareCropDialog({
   });
   latestRef.current = {
     pan,
+    zoom,
     maxPanX: geometry?.maxPanX ?? 0,
     maxPanY: geometry?.maxPanY ?? 0,
     srcW: srcSize?.width ?? 0,
@@ -137,6 +140,11 @@ export function SquareCropDialog({
   };
 
   const panStartRef = useRef<Pan>({ x: 0, y: 0 });
+  // Baseline captured on the first move frame of a pinch: the distance
+  // between the two touches and the zoom at that moment, so subsequent
+  // frames can scale zoom by the distance ratio instead of drifting from
+  // per-frame deltas. Null outside an active pinch.
+  const pinchStartRef = useRef<{ distance: number; zoom: number } | null>(null);
   const trackRef = useRef({ pageX: 0, width: 0 });
   const trackViewRef = useRef<View>(null);
 
@@ -172,13 +180,46 @@ export function SquareCropDialog({
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         panStartRef.current = latestRef.current.pan;
+        pinchStartRef.current = null;
       },
-      onPanResponderMove: (_evt: GestureResponderEvent, gesture: PanResponderGestureState) => {
+      onPanResponderMove: (evt: GestureResponderEvent, gesture: PanResponderGestureState) => {
+        const touches = evt.nativeEvent.touches;
+        if (touches.length >= 2) {
+          const [a, b] = touches;
+          const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
+          if (pinchStartRef.current === null) {
+            // First frame of the pinch: no prior distance to compare against,
+            // so just record the baseline and wait for the next frame to
+            // compute a ratio.
+            pinchStartRef.current = { distance, zoom: latestRef.current.zoom };
+            return;
+          }
+          if (distance === 0) return;
+          const pinchStart = pinchStartRef.current;
+          const { maxZoom: currentMaxZoom } = latestRef.current;
+          const newZoom = Math.min(
+            currentMaxZoom,
+            Math.max(MIN_ZOOM, pinchStart.zoom * (distance / pinchStart.distance)),
+          );
+          setZoomAndClampPan(newZoom);
+          return;
+        }
+
+        // Fewer than two touches: not (or no longer) a pinch. Clear any
+        // pinch baseline so lifting a second finger and continuing to drag
+        // starts a clean pan instead of resuming a stale pinch ratio.
+        pinchStartRef.current = null;
         const { maxPanX, maxPanY } = latestRef.current;
         setPan({
           x: clamp(panStartRef.current.x + gesture.dx, maxPanX),
           y: clamp(panStartRef.current.y + gesture.dy, maxPanY),
         });
+      },
+      onPanResponderRelease: () => {
+        pinchStartRef.current = null;
+      },
+      onPanResponderTerminate: () => {
+        pinchStartRef.current = null;
       },
     }),
   ).current;
@@ -329,7 +370,9 @@ export function SquareCropDialog({
 
               <Text variant="bodySm" color="textMuted" align="center" style={styles.hint}>
                 {isCovered
-                  ? 'Drag to reposition.'
+                  ? Platform.OS === 'web'
+                    ? 'Drag to reposition.'
+                    : 'Drag to reposition. Pinch to zoom.'
                   : 'The whole photo will be used. Zoom in to fill the square.'}
               </Text>
 
@@ -359,24 +402,29 @@ export function SquareCropDialog({
                     </Pressable>
                   </View>
                 </View>
-                <View
-                  ref={trackViewRef}
-                  onLayout={measureTrack}
-                  style={styles.track}
-                  accessibilityRole="adjustable"
-                  accessibilityLabel="Zoom"
-                  accessibilityValue={{ min: MIN_ZOOM, max: maxZoom, now: zoom }}
-                  {...zoomResponder.panHandlers}
-                >
-                  <View style={styles.trackBase} />
-                  <View style={[styles.trackFill, { width: `${fillPct}%` }]} />
+                {/* Web has no pinch gesture (mouse only), so the slider is the
+                    only way to zoom there. Touch platforms zoom by pinching
+                    the viewport directly, so the slider would be redundant. */}
+                {Platform.OS === 'web' && (
                   <View
-                    style={[
-                      styles.thumb,
-                      { left: `${fillPct}%`, transform: [{ translateX: -THUMB_SIZE / 2 }] },
-                    ]}
-                  />
-                </View>
+                    ref={trackViewRef}
+                    onLayout={measureTrack}
+                    style={styles.track}
+                    accessibilityRole="adjustable"
+                    accessibilityLabel="Zoom"
+                    accessibilityValue={{ min: MIN_ZOOM, max: maxZoom, now: zoom }}
+                    {...zoomResponder.panHandlers}
+                  >
+                    <View style={styles.trackBase} />
+                    <View style={[styles.trackFill, { width: `${fillPct}%` }]} />
+                    <View
+                      style={[
+                        styles.thumb,
+                        { left: `${fillPct}%`, transform: [{ translateX: -THUMB_SIZE / 2 }] },
+                      ]}
+                    />
+                  </View>
+                )}
               </View>
             </>
           )}

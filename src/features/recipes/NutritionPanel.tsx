@@ -22,27 +22,26 @@ export function NutritionPanel({ nutrition }: NutritionPanelProps) {
         WHOLE RECIPE
       </Text>
       <View style={styles.panel}>
-        <View style={styles.column}>
-          <Readout variant="readoutXl" align="right">
-            {Math.round(nutrition.calories)}
-          </Readout>
-          <Text variant="label" color="textMuted" align="right">
+        <View style={styles.headline}>
+          <Readout variant="readoutXl">{Math.round(nutrition.calories)}</Readout>
+          <Text variant="label" color="textMuted" style={styles.headlineLabel}>
             KCAL
           </Text>
         </View>
 
-        <View style={styles.rule} />
+        <View style={styles.divider} />
 
         <View style={styles.macros}>
-          {MACRO_COLUMNS.map(({ key, label }) => (
-            <View key={key} style={styles.column}>
-              <Readout variant="readoutLg" align="right">
-                {Math.round(nutrition[key])}
-              </Readout>
-              <Text variant="label" color="textMuted" align="right">
-                {label}
-              </Text>
-            </View>
+          {MACRO_COLUMNS.map(({ key, label }, index) => (
+            <React.Fragment key={key}>
+              {index > 0 && <View style={styles.macroRule} />}
+              <View style={styles.macroColumn}>
+                <Readout variant="readoutLg">{Math.round(nutrition[key])} G</Readout>
+                <Text variant="label" color="textMuted" numberOfLines={1}>
+                  {label}
+                </Text>
+              </View>
+            </React.Fragment>
           ))}
         </View>
       </View>
@@ -56,25 +55,38 @@ const styles = StyleSheet.create({
     marginBottom: space.sm,
   },
   panel: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: colors.slab,
     borderRadius: radius.md,
     padding: space.lg,
     marginHorizontal: space.lg,
   },
-  column: {
+  headline: {
+    flexDirection: 'row',
     alignItems: 'flex-end',
   },
-  rule: {
+  // Offsets the label down off the number's cap height so it lands on its baseline instead.
+  headlineLabel: {
+    marginLeft: space.xs,
+    marginBottom: space.xs,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.lineStrong,
+    marginVertical: space.md,
+  },
+  macros: {
+    flexDirection: 'row',
+  },
+  // Equal flex on every column is what keeps the three figures aligned,
+  // regardless of how long PROTEIN/CARBS/FAT's labels are.
+  macroColumn: {
+    flex: 1,
+    alignItems: 'center',
+    gap: space.xs,
+  },
+  macroRule: {
     width: 1,
     alignSelf: 'stretch',
     backgroundColor: colors.lineStrong,
-    marginHorizontal: space.lg,
-  },
-  macros: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
   },
 });

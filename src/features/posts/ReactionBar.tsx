@@ -1,12 +1,12 @@
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { useClearReaction, useSetReaction } from '../../api/posts';
 import type { Post } from '../../api/schemas';
 import { colors, HIT_SLOP, radius, shadow, space } from '../../theme/theme';
-import { IconButton } from '../../ui/IconButton';
 import { Readout, Text } from '../../ui/Text';
+import { SaveRecipeButton } from '../recipes/SaveRecipeButton';
 
 const EMOJI_SET = ['❤️', '😋', '🔥', '👍', '😍'];
 
@@ -15,6 +15,7 @@ interface ReactionBarProps {
   reactions: Post['reactions'];
   commentCount: number;
   onOpenComments: () => void;
+  recipe: Post['recipe'];
 }
 
 function sortedReactions(byEmoji: Record<string, number>): [string, number][] {
@@ -24,7 +25,7 @@ function sortedReactions(byEmoji: Record<string, number>): [string, number][] {
   });
 }
 
-export function ReactionBar({ postId, reactions, commentCount, onOpenComments }: ReactionBarProps) {
+export function ReactionBar({ postId, reactions, commentCount, onOpenComments, recipe }: ReactionBarProps) {
   const setReaction = useSetReaction(postId);
   const clearReaction = useClearReaction(postId);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -36,8 +37,7 @@ export function ReactionBar({ postId, reactions, commentCount, onOpenComments }:
     else setReaction.mutate(emoji);
   }
 
-  function togglePicker() {
-    const nextOpen = !isPickerOpen;
+  function setPickerOpen(nextOpen: boolean) {
     setIsPickerOpen(nextOpen);
 
     AccessibilityInfo.isReduceMotionEnabled().then((reduceMotion) => {
@@ -50,33 +50,52 @@ export function ReactionBar({ postId, reactions, commentCount, onOpenComments }:
     });
   }
 
+  function handleTap() {
+    if (reactions.mine) clearReaction.mutate();
+    else setReaction.mutate('❤️');
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+
+  function handleLongPress() {
+    setPickerOpen(!isPickerOpen);
+  }
+
   function pickFromPicker(emoji: string) {
     react(emoji);
-    setIsPickerOpen(false);
-    pickerAnim.setValue(0);
+    setPickerOpen(false);
   }
 
   const entries = sortedReactions(reactions.byEmoji);
+  const glyphEntries =
+    entries.length === 1 && entries[0][0] === reactions.mine ? [] : entries.slice(0, 3);
+
+  const reactionLabel = reactions.mine
+    ? `Remove your ${reactions.mine} reaction. Long press for more reaction options.`
+    : 'React with a heart. Long press for more reaction options.';
 
   return (
-    <View>
+    <View style={styles.container}>
       <View style={styles.row}>
-        {entries.map(([emoji, count]) => {
-          const isMine = emoji === reactions.mine;
-          return (
-            <Pressable
-              key={emoji}
-              onPress={() => react(emoji)}
-              style={[styles.pill, isMine ? styles.pillMine : styles.pillOther]}
-              accessibilityRole="button"
-              accessibilityLabel={`${emoji} reaction, ${count}${isMine ? ', your reaction' : ''}`}
-            >
-              <Text variant="bodySm">{emoji}</Text>
-              <Readout variant="readoutSm">{count}</Readout>
-            </Pressable>
-          );
-        })}
-        <IconButton name="plus" onPress={togglePicker} label="React" size={18} />
+        <Pressable
+          onPress={handleTap}
+          onLongPress={handleLongPress}
+          delayLongPress={250}
+          style={styles.reactionControl}
+          accessibilityRole="button"
+          accessibilityLabel={reactionLabel}
+        >
+          {reactions.mine ? (
+            <Text variant="displaySm">{reactions.mine}</Text>
+          ) : (
+            <MaterialIcons name="favorite-border" size={22} color={colors.text} />
+          )}
+        </Pressable>
+        {reactions.total > 0 && <Readout variant="readoutSm">{reactions.total}</Readout>}
+        {glyphEntries.map(([emoji]) => (
+          <Text key={emoji} variant="bodySm">
+            {emoji}
+          </Text>
+        ))}
         <Pressable
           onPress={onOpenComments}
           style={styles.commentButton}
@@ -87,14 +106,17 @@ export function ReactionBar({ postId, reactions, commentCount, onOpenComments }:
           <Feather name="message-circle" size={18} color={colors.text} />
           <Readout variant="readoutSm">{commentCount}</Readout>
         </Pressable>
+        <SaveRecipeButton recipeId={recipe.id} isSaved={recipe.isSaved} />
       </View>
       {isPickerOpen && (
+        // Absolutely positioned and anchored to the row's bottom edge so the
+        // picker floats over the card instead of adding layout height to it.
         <Animated.View
           style={[
             styles.picker,
             {
               opacity: pickerAnim,
-              transform: [{ translateY: pickerAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }],
+              transform: [{ scale: pickerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }],
             },
           ]}
         >
@@ -106,7 +128,7 @@ export function ReactionBar({ postId, reactions, commentCount, onOpenComments }:
               accessibilityRole="button"
               accessibilityLabel={`React with ${emoji}`}
             >
-              <Text variant="displaySm">{emoji}</Text>
+              <Text variant="displayMd">{emoji}</Text>
             </Pressable>
           ))}
         </Animated.View>
@@ -116,6 +138,9 @@ export function ReactionBar({ postId, reactions, commentCount, onOpenComments }:
 }
 
 const styles = StyleSheet.create({
+  container: {
+    zIndex: 1,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -123,21 +148,11 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
     gap: space.sm,
   },
-  pill: {
-    flexDirection: 'row',
+  reactionControl: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
-    gap: space.xs,
-    borderRadius: radius.pill,
-    paddingHorizontal: space.md,
-    height: 30,
-  },
-  pillMine: {
-    backgroundColor: colors.accentTint,
-    borderWidth: 1,
-    borderColor: colors.accent,
-  },
-  pillOther: {
-    backgroundColor: colors.slab,
+    justifyContent: 'center',
   },
   commentButton: {
     flexDirection: 'row',
@@ -146,16 +161,16 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
   picker: {
+    position: 'absolute',
+    bottom: '100%',
+    left: space.lg,
     flexDirection: 'row',
-    alignSelf: 'flex-start',
-    marginHorizontal: space.lg,
-    marginBottom: space.md,
     backgroundColor: colors.surface,
     borderRadius: radius.pill,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
     gap: space.md,
-    ...shadow.lift,
+    ...shadow.float,
   },
   pickerEmoji: {
     borderRadius: radius.pill,
