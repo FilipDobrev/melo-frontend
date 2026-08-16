@@ -166,5 +166,18 @@ export const shadow = {
   },
 } as const;
 
+/**
+ * Categorical hues for the macro split bar. Deliberately NOT `accent` or
+ * `deep`: those two mean "pressable" and "scannable" everywhere else in the
+ * app, and a chart hue that looks like an affordance is a lie. Validated
+ * against the slab surface for lightness, chroma, colour-vision separation
+ * and 3:1 contrast - re-run that check before changing any of them.
+ */
+export const macroColors = {
+  protein: '#00805F',
+  carbs: '#B8760A',
+  fat: '#7A4A8C',
+} as const;
+
 /** Minimum tap target. Used for icon buttons that look smaller than they are. */
 export const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 } as const;
