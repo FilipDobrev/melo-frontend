@@ -6,7 +6,6 @@ import { useClearReaction, useSetReaction } from '../../api/posts';
 import type { Post } from '../../api/schemas';
 import { colors, HIT_SLOP, radius, shadow, space } from '../../theme/theme';
 import { Readout, Text } from '../../ui/Text';
-import { SaveRecipeButton } from '../recipes/SaveRecipeButton';
 
 const EMOJI_SET = ['❤️', '😋', '🔥', '👍', '😍'];
 
@@ -15,7 +14,6 @@ interface ReactionBarProps {
   reactions: Post['reactions'];
   commentCount: number;
   onOpenComments: () => void;
-  recipe: Post['recipe'];
 }
 
 function sortedReactions(byEmoji: Record<string, number>): [string, number][] {
@@ -25,7 +23,7 @@ function sortedReactions(byEmoji: Record<string, number>): [string, number][] {
   });
 }
 
-export function ReactionBar({ postId, reactions, commentCount, onOpenComments, recipe }: ReactionBarProps) {
+export function ReactionBar({ postId, reactions, commentCount, onOpenComments }: ReactionBarProps) {
   const setReaction = useSetReaction(postId);
   const clearReaction = useClearReaction(postId);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -106,7 +104,6 @@ export function ReactionBar({ postId, reactions, commentCount, onOpenComments, r
           <Feather name="message-circle" size={18} color={colors.text} />
           <Readout variant="readoutSm">{commentCount}</Readout>
         </Pressable>
-        <SaveRecipeButton recipeId={recipe.id} isSaved={recipe.isSaved} />
       </View>
       {isPickerOpen && (
         // Absolutely positioned and anchored to the row's bottom edge so the

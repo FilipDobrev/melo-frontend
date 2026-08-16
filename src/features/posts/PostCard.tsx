@@ -111,7 +111,6 @@ function PostCardBase({ post, variant = 'feed', onOpenComments, onOpenActions }:
         reactions={post.reactions}
         commentCount={post.commentCount}
         onOpenComments={() => onOpenComments(post.id)}
-        recipe={post.recipe}
       />
 
       {post.caption !== null && (
