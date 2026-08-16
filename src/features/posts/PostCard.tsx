@@ -5,7 +5,7 @@ import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { useSetReaction } from '../../api/posts';
 import type { Post } from '../../api/schemas';
 import { formatCount, relativeTime } from '../../lib/format';
-import { colors, space } from '../../theme/theme';
+import { colors, radius, space } from '../../theme/theme';
 import { Avatar } from '../../ui/Avatar';
 import { IconButton } from '../../ui/IconButton';
 import { Readout, Text } from '../../ui/Text';
@@ -71,16 +71,18 @@ function PostCardBase({ post, variant = 'feed', onOpenComments, onOpenActions }:
         >
           <Avatar uri={post.author.profileImage} username={post.author.username} size={34} />
           <Text variant="strong">{post.author.username}</Text>
-          <Readout variant="readoutSm" color="textFaint">
-            {relativeTime(post.createdAt)}
-          </Readout>
         </Pressable>
+        <Readout variant="readoutSm" color="textFaint" style={styles.timestamp}>
+          {relativeTime(post.createdAt)}
+        </Readout>
         {onOpenActions && (
-          <IconButton
-            name="more-horizontal"
-            onPress={() => onOpenActions(post)}
-            label="Post options"
-          />
+          <View style={styles.overflowButton}>
+            <IconButton
+              name="more-horizontal"
+              onPress={() => onOpenActions(post)}
+              label="Post options"
+            />
+          </View>
         )}
       </View>
 
@@ -168,11 +170,18 @@ const styles = StyleSheet.create({
     height: 52,
     paddingHorizontal: space.lg,
   },
+  // Hugs the avatar + username only - the empty middle of the header row
+  // should not open a profile just because it happens to sit near the name.
   headerIdentity: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
+  },
+  timestamp: {
+    marginLeft: space.sm,
+  },
+  overflowButton: {
+    marginLeft: 'auto',
   },
   heart: {
     position: 'absolute',
@@ -185,11 +194,15 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   captionBlock: {
-    paddingHorizontal: space.lg,
-    paddingBottom: space.md,
+    backgroundColor: colors.slab,
+    borderRadius: radius.md,
+    marginHorizontal: space.lg,
+    marginTop: space.xs,
+    padding: space.md,
   },
   viewAllComments: {
     paddingHorizontal: space.lg,
+    paddingTop: space.sm,
     paddingBottom: space.md,
   },
 });

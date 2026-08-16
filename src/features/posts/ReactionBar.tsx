@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: space.lg,
-    paddingVertical: space.md,
+    paddingVertical: space.sm,
     gap: space.sm,
   },
   reactionControl: {
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,
-    marginLeft: 'auto',
+    marginLeft: space.sm,
   },
   picker: {
     position: 'absolute',
