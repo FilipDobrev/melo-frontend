@@ -4,7 +4,7 @@ import React, { useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { useSetReaction } from '../../api/posts';
 import type { Post } from '../../api/schemas';
-import { formatCount, relativeTime } from '../../lib/format';
+import { relativeTime } from '../../lib/format';
 import { colors, radius, space } from '../../theme/theme';
 import { Avatar } from '../../ui/Avatar';
 import { IconButton } from '../../ui/IconButton';
@@ -137,19 +137,6 @@ function PostCardBase({ post, variant = 'feed', onOpenComments, onOpenActions }:
           )}
         </View>
       )}
-
-      {variant === 'feed' && post.commentCount > 0 && (
-        <Pressable
-          onPress={() => onOpenComments(post.id)}
-          style={styles.viewAllComments}
-          accessibilityRole="button"
-          accessibilityLabel={`View all ${post.commentCount} comments`}
-        >
-          <Text variant="bodySm" color="textMuted">
-            {`View all ${formatCount(post.commentCount)} comments`}
-          </Text>
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -159,6 +146,7 @@ export const PostCard = React.memo(PostCardBase);
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
+    paddingBottom: space.md,
   },
   feedHairline: {
     borderBottomWidth: 1,
@@ -199,10 +187,5 @@ const styles = StyleSheet.create({
     marginHorizontal: space.lg,
     marginTop: space.xs,
     padding: space.md,
-  },
-  viewAllComments: {
-    paddingHorizontal: space.lg,
-    paddingTop: space.sm,
-    paddingBottom: space.md,
   },
 });
