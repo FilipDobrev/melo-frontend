@@ -43,7 +43,7 @@ function PostCardBase({ post, variant = 'feed', onOpenComments, onOpenActions }:
     heartAnim.setValue(0);
     Animated.timing(heartAnim, {
       toValue: 1,
-      duration: 600,
+      duration: 900,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {

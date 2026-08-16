@@ -79,13 +79,14 @@ export function ReactionBar({ postId, reactions, commentCount, onOpenComments }:
           onLongPress={handleLongPress}
           delayLongPress={250}
           style={styles.reactionControl}
+          hitSlop={HIT_SLOP}
           accessibilityRole="button"
           accessibilityLabel={reactionLabel}
         >
           {reactions.mine ? (
-            <Text variant="displaySm">{reactions.mine}</Text>
+            <Text variant="displayMd">{reactions.mine}</Text>
           ) : (
-            <MaterialIcons name="favorite-border" size={22} color={colors.text} />
+            <MaterialIcons name="favorite-border" size={20} color={colors.text} />
           )}
         </Pressable>
         {reactions.total > 0 && <Readout variant="readoutSm">{reactions.total}</Readout>}
@@ -142,13 +143,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: space.lg,
-    paddingTop: space.sm,
+    paddingTop: space.xs,
     paddingBottom: space.xs,
-    gap: space.sm,
+    gap: space.xs,
   },
   reactionControl: {
-    width: 40,
-    height: 40,
+    // No fixed box: sizes to content so the count sits right beside the
+    // glyph. Touch target is restored via hitSlop instead of padding.
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -156,7 +157,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,
-    marginLeft: space.sm,
+    marginLeft: space.md,
   },
   picker: {
     position: 'absolute',
