@@ -1,4 +1,4 @@
-import { Feather, MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
@@ -102,7 +102,7 @@ export function ReactionBar({ postId, reactions, commentCount, onOpenComments }:
           accessibilityLabel={`${commentCount} comments`}
           hitSlop={HIT_SLOP}
         >
-          <Feather name="message-circle" size={18} color={colors.text} />
+          <MaterialIcons name="chat-bubble-outline" size={20} color={colors.text} />
           <Readout variant="readoutSm">{commentCount}</Readout>
         </Pressable>
       </View>
@@ -143,13 +143,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: space.lg,
-    paddingTop: space.xs,
-    paddingBottom: space.xs,
+    paddingTop: space.sm,
+    paddingBottom: space.sm,
     gap: space.xs,
   },
   reactionControl: {
-    // No fixed box: sizes to content so the count sits right beside the
-    // glyph. Touch target is restored via hitSlop instead of padding.
+    // Fixed height so reacting can't reflow the card: the outline icon is a
+    // 20px glyph but the emoji uses displayMd's 24px line box (and emoji
+    // often overshoot that), so without a pinned height the row grows when
+    // you react. No fixed width, though: that's what previously pushed the
+    // count away from the glyph, so it stays content-sized and relies on
+    // hitSlop for the touch target instead of padding.
+    height: 26,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -157,7 +162,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,
-    marginLeft: space.md,
+    marginLeft: space.sm,
   },
   picker: {
     position: 'absolute',
