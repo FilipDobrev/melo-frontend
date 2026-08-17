@@ -29,15 +29,24 @@ export function ProductPickerSheet({ visible, onClose, onPick, onRequestCreate }
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useProductSearch(debounced);
   const products = flattenPages(data);
 
+  // Reset both the raw and debounced query on every dismissal (pick or
+  // close) - clearing only `search` leaves the debounced value still
+  // driving a stale result list until the next keystroke re-fires it.
+  function handleClose() {
+    setSearch('');
+    setDebounced('');
+    onClose();
+  }
+
   function handlePick(product: Product) {
     onPick(product);
-    onClose();
+    handleClose();
   }
 
   return (
     <Sheet
       visible={visible}
-      onClose={onClose}
+      onClose={handleClose}
       title="Add ingredient"
       footer={
         <View style={styles.footer}>

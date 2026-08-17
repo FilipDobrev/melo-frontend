@@ -42,7 +42,11 @@ export function CollectionPickerSheet({ recipeId, onClose }: CollectionPickerShe
     if (!recipeId) return;
     setNewError(undefined);
     try {
-      const collection = await createCollection.mutateAsync(newName);
+      // Passing recipeId to the create call adds and saves the recipe
+      // atomically with the collection - a follow-up "add" request could
+      // fail after the collection was created and leave it empty with the
+      // UI wrongly claiming the recipe is in it.
+      const collection = await createCollection.mutateAsync({ name: newName, recipeId });
       setNewName('');
       setAddedIds((prev) => new Set(prev).add(collection.id));
     } catch (error) {

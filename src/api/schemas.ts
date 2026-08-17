@@ -85,6 +85,7 @@ export const productSchema = z.object({
   proteinPer100g: z.number(),
   carbsPer100g: z.number(),
   fatPer100g: z.number(),
+  sugarPer100g: z.number(),
   densityGPerMl: z.number().nullable(),
   gramsPerPiece: z.number().nullable(),
 });
@@ -95,6 +96,8 @@ export const nutritionSchema = z.object({
   protein: z.number(),
   carbs: z.number(),
   fat: z.number(),
+  // A subset of carbs, not a fifth peer macro - render it nested, not alongside.
+  sugar: z.number(),
 });
 export type Nutrition = z.infer<typeof nutritionSchema>;
 

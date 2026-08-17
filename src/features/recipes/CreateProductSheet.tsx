@@ -21,6 +21,7 @@ interface FormErrors {
   proteinPer100g?: string;
   carbsPer100g?: string;
   fatPer100g?: string;
+  sugarPer100g?: string;
 }
 
 /** Parses a numeric field: empty/NaN/negative all fail, everything else passes through. */
@@ -38,11 +39,25 @@ function parseOptionalPositive(text: string): number | undefined {
   return value;
 }
 
+/**
+ * Sugar is optional (server defaults it to 0), but unlike density/grams-per-
+ * piece an invalid value should still be flagged rather than silently
+ * dropped - so blank and "not a valid number" are distinguished here:
+ * blank -> undefined (omit), invalid -> null (show an error).
+ */
+function parseOptionalNonNegative(text: string): number | null | undefined {
+  if (text.trim() === '') return undefined;
+  const value = Number(text);
+  if (Number.isNaN(value) || value < 0) return null;
+  return value;
+}
+
 export function CreateProductSheet({ visible, onClose, onCreated }: CreateProductSheetProps) {
   const [name, setName] = useState('');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
+  const [sugar, setSugar] = useState('');
   const [fat, setFat] = useState('');
   const [density, setDensity] = useState('');
   const [gramsPerPiece, setGramsPerPiece] = useState('');
@@ -55,6 +70,7 @@ export function CreateProductSheet({ visible, onClose, onCreated }: CreateProduc
     setCalories('');
     setProtein('');
     setCarbs('');
+    setSugar('');
     setFat('');
     setDensity('');
     setGramsPerPiece('');
@@ -79,6 +95,8 @@ export function CreateProductSheet({ visible, onClose, onCreated }: CreateProduc
     if (proteinValue === null) nextErrors.proteinPer100g = 'Enter protein per 100 g.';
     const carbsValue = parseNonNegative(carbs);
     if (carbsValue === null) nextErrors.carbsPer100g = 'Enter carbs per 100 g.';
+    const sugarValue = parseOptionalNonNegative(sugar);
+    if (sugarValue === null) nextErrors.sugarPer100g = 'Enter a valid sugar value, or leave it blank.';
     const fatValue = parseNonNegative(fat);
     if (fatValue === null) nextErrors.fatPer100g = 'Enter fat per 100 g.';
 
@@ -93,6 +111,7 @@ export function CreateProductSheet({ visible, onClose, onCreated }: CreateProduc
         caloriesPer100g: caloriesValue as number,
         proteinPer100g: proteinValue as number,
         carbsPer100g: carbsValue as number,
+        sugarPer100g: sugarValue ?? undefined,
         fatPer100g: fatValue as number,
         densityGPerMl: parseOptionalPositive(density),
         gramsPerPiece: parseOptionalPositive(gramsPerPiece),
@@ -130,6 +149,14 @@ export function CreateProductSheet({ visible, onClose, onCreated }: CreateProduc
           value={carbs}
           onChangeText={setCarbs}
           error={errors.carbsPer100g}
+          keyboardType="decimal-pad"
+        />
+        <Field
+          label="Sugar per 100 g"
+          value={sugar}
+          onChangeText={setSugar}
+          error={errors.sugarPer100g}
+          hint="Part of the carb figure. Leave blank if you don't know."
           keyboardType="decimal-pad"
         />
         <Field

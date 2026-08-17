@@ -32,6 +32,8 @@ export function useCreateProduct() {
       proteinPer100g: number;
       carbsPer100g: number;
       fatPer100g: number;
+      /** Part of the carb figure, not a separate macro. Server defaults it to 0. */
+      sugarPer100g?: number;
       densityGPerMl?: number;
       gramsPerPiece?: number;
     }) => request('/products', { method: 'POST', body: input, schema: productSchema }),

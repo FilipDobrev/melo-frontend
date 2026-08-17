@@ -45,14 +45,22 @@ export function useCollections() {
   });
 }
 
-/** A 409 means the name is taken; let it propagate so the UI shows error.message. */
+/**
+ * A 409 means the name is taken; let it propagate so the UI shows error.message.
+ *
+ * `recipeId` is passed to the create call itself rather than added in a
+ * follow-up request: two separate requests can fail between them and leave
+ * an empty collection behind.
+ */
 export function useCreateCollection() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) =>
-      request('/users/me/collections', { method: 'POST', body: { name }, schema: collectionSchema }),
-    onSuccess: () => {
+    mutationFn: (input: { name: string; recipeId?: string }) =>
+      request('/users/me/collections', { method: 'POST', body: input, schema: collectionSchema }),
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: keys.collections.root });
+      // Creating with a recipeId also saves that recipe to the cookbook server-side.
+      if (variables.recipeId) void queryClient.invalidateQueries({ queryKey: keys.cookbook.root });
     },
   });
 }

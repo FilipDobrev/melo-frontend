@@ -40,7 +40,7 @@ export function CollectionRail({ onOpenCollection }: CollectionRailProps) {
   async function handleCreate() {
     setCreateError(undefined);
     try {
-      await createCollection.mutateAsync(createName);
+      await createCollection.mutateAsync({ name: createName });
       setCreateName('');
       setCreateOpen(false);
     } catch (error) {

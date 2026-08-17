@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useCategories } from '../../src/api/catalog';
-import { useCookbook, useToggleSave } from '../../src/api/cookbook';
+import { useCollections, useCookbook, useToggleSave } from '../../src/api/cookbook';
 import { flattenPages } from '../../src/api/paging';
 import { useDeleteRecipe } from '../../src/api/recipes';
 import { useCurrentUser } from '../../src/auth/AuthContext';
@@ -14,6 +14,7 @@ import { RecipeTile } from '../../src/features/recipes/RecipeTile';
 import { Chip } from '../../src/ui/Chip';
 import { ConfirmDialog } from '../../src/ui/ConfirmDialog';
 import { EmptyState } from '../../src/ui/EmptyState';
+import { IconButton } from '../../src/ui/IconButton';
 import { Screen } from '../../src/ui/Screen';
 import { Sheet } from '../../src/ui/Sheet';
 import { StateView } from '../../src/ui/StateView';
@@ -29,6 +30,7 @@ export default function CookbookScreen() {
   const [longPressedRecipeId, setLongPressedRecipeId] = useState<string | null>(null);
   const [pickerRecipeId, setPickerRecipeId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
 
   const width = useContentWidth();
   const tileWidth = Math.floor((width - space.lg * 2 - space.md) / 2);
@@ -39,6 +41,7 @@ export default function CookbookScreen() {
   const toggleSave = useToggleSave();
   const deleteRecipe = useDeleteRecipe();
   const currentUser = useCurrentUser();
+  const collections = useCollections();
 
   const longPressedRecipe = recipeItems.find((item) => item.id === longPressedRecipeId) ?? null;
   // A cookbook holds recipes saved from other users too, so edit/delete must
@@ -51,8 +54,25 @@ export default function CookbookScreen() {
   }
 
   function handleRemove() {
-    if (longPressedRecipeId) toggleSave.mutate({ recipeId: longPressedRecipeId, saved: false });
+    const id = longPressedRecipeId;
     setLongPressedRecipeId(null);
+    if (!id) return;
+    // No endpoint exposes which collections contain a given recipe, and
+    // checking would mean fetching every collection's recipe list. So this
+    // proxies "is this recipe filed anywhere" with "does this user have any
+    // collections at all" - a user with none has nothing to lose from an
+    // unprompted removal. Tighten this to a real per-recipe check if the
+    // API ever exposes one.
+    if ((collections.data ?? []).length > 0) {
+      setConfirmRemoveId(id);
+    } else {
+      toggleSave.mutate({ recipeId: id, saved: false });
+    }
+  }
+
+  function handleConfirmRemove() {
+    if (confirmRemoveId) toggleSave.mutate({ recipeId: confirmRemoveId, saved: false });
+    setConfirmRemoveId(null);
   }
 
   function handleDelete() {
@@ -63,13 +83,26 @@ export default function CookbookScreen() {
   return (
     <Screen>
       <View style={styles.titleRow}>
-        <Text variant="displayLg">Cookbook</Text>
+        <Text variant="displayLg" style={styles.titleText}>
+          Cookbook
+        </Text>
+        <IconButton
+          name="plus"
+          label="Write a recipe"
+          onPress={() => router.push('/recipe/new')}
+        />
       </View>
 
+      <Text variant="label" color="textMuted" style={styles.sectionHeader}>
+        COLLECTIONS
+      </Text>
       <CollectionRail
         onOpenCollection={(id) => router.push({ pathname: '/collection/[id]', params: { id } })}
       />
 
+      <Text variant="label" color="textMuted" style={styles.sectionHeader}>
+        ALL SAVED RECIPES
+      </Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -173,6 +206,16 @@ export default function CookbookScreen() {
         onConfirm={handleDelete}
         onCancel={() => setConfirmDeleteId(null)}
       />
+
+      <ConfirmDialog
+        visible={confirmRemoveId !== null}
+        title="Remove from your cookbook?"
+        body="This also removes it from any collections you've filed it in. You can save it again, but you'll need to re-add it to those collections."
+        confirmLabel="Remove"
+        destructive
+        onConfirm={handleConfirmRemove}
+        onCancel={() => setConfirmRemoveId(null)}
+      />
     </Screen>
   );
 }
@@ -200,9 +243,19 @@ function RowAction({
 
 const styles = StyleSheet.create({
   titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: space.lg,
     paddingTop: space.sm,
     paddingBottom: space.sm,
+  },
+  titleText: {
+    flex: 1,
+  },
+  sectionHeader: {
+    marginHorizontal: space.lg,
+    marginTop: space.md,
+    marginBottom: space.sm,
   },
   // A ScrollView defaults to flexGrow 1, so a horizontal one in a column
   // layout stretches vertically and opens a gap under the chips.

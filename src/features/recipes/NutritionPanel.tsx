@@ -9,7 +9,7 @@ interface NutritionPanelProps {
 }
 
 const MACRO_COLUMNS: {
-  key: keyof Omit<Nutrition, 'calories'>;
+  key: 'protein' | 'carbs' | 'fat';
   label: string;
   color: string;
 }[] = [
@@ -91,6 +91,25 @@ export function NutritionPanel({ nutrition }: NutritionPanelProps) {
                     {label}
                   </Text>
                 </View>
+                {/*
+                  Sugar is a subset of carbs, not a fourth macro, so it is
+                  never its own column and never a segment on the energy bar
+                  above (that bar is normalised across protein/carbs/fat at
+                  4/4/9 kcal per gram - adding sugar would double-count
+                  carbohydrate energy that's already in the carbs segment).
+                  Reserving the same line in every column (blank where there
+                  is nothing to show) keeps all three columns the same
+                  height so the row's baselines stay aligned.
+                */}
+                {key === 'carbs' ? (
+                  <Text variant="readoutSm" color="textMuted" numberOfLines={1}>
+                    {`${Math.round(nutrition.sugar)} G SUGAR`}
+                  </Text>
+                ) : (
+                  <Text variant="readoutSm" numberOfLines={1} accessible={false}>
+                    {' '}
+                  </Text>
+                )}
               </View>
             </React.Fragment>
           ))}
