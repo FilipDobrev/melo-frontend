@@ -13,7 +13,7 @@ interface ScreenHeaderProps {
 
 export function ScreenHeader({ title, onBack, right, subtitle }: ScreenHeaderProps) {
   return (
-    <View style={[styles.row, subtitle && styles.rowWithSubtitle]}>
+    <View style={[styles.row, onBack && styles.rowWithBack, subtitle && styles.rowWithSubtitle]}>
       {onBack && <IconButton name="chevron-left" onPress={onBack} label="Go back" />}
       <View style={styles.titleColumn}>
         {title && (
@@ -41,6 +41,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ground,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
+  },
+  /**
+   * IconButton centres its glyph in a 40px touch box, so it already carries
+   * roughly 9px of padding of its own. Left at the full space.lg the chevron
+   * lands about 25px in and reads as floating off the corner, out of line with
+   * every other screen edge. Giving that padding back puts the glyph on the
+   * same margin as the content beneath it.
+   */
+  rowWithBack: {
+    paddingLeft: space.sm,
   },
   rowWithSubtitle: {
     paddingVertical: space.sm,

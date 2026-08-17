@@ -59,7 +59,7 @@ export default function RecipeDetailScreen() {
                   style={[styles.heroImage, { backgroundColor: colors.slab }]}
                 />
                 <View style={[styles.heroButton, styles.heroButtonLeft]}>
-                  <IconButton name="chevron-left" onPress={() => router.back()} label="Back" color="textInverse" />
+                  <IconButton name="chevron-left" onPress={() => router.back()} label="Go back" color="textInverse" />
                 </View>
                 {/* Visible to every viewer now: "Add to a collection" below is a
                     normal thing to do with someone else's recipe, not just your own. */}
@@ -235,11 +235,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: colors.scrimSoft,
   },
+  // Matches ScreenHeader's back chevron: the IconButton's own ~9px inset plus
+  // this lands the glyph on the same margin as every other screen's back arrow.
   heroButtonLeft: {
-    left: space.md,
+    left: space.sm,
   },
   heroButtonRight: {
-    right: space.md,
+    right: space.sm,
   },
   title: {
     marginHorizontal: space.lg,
