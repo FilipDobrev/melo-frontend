@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useAuth } from '../../src/auth/AuthContext';
 import { API_URL } from '../../src/api/client';
+import { AccountDeletionBanner } from '../../src/features/users/AccountDeletionBanner';
 import { ConfirmDialog } from '../../src/ui/ConfirmDialog';
 import { Screen } from '../../src/ui/Screen';
 import { ScreenHeader } from '../../src/ui/ScreenHeader';
@@ -18,6 +19,10 @@ export default function SettingsScreen() {
   return (
     <Screen edges={['top']}>
       <ScreenHeader title="Settings" onBack={() => router.back()} />
+
+      {/* Mounted per-screen (also on the profile tab) rather than above the
+          tab navigator, so it stays inside each screen's safe-area wrapper. */}
+      <AccountDeletionBanner />
 
       <Pressable
         accessibilityRole="button"
@@ -41,6 +46,20 @@ export default function SettingsScreen() {
         <Feather name="log-out" size={18} color={colors.danger} />
         <Text variant="body" color="danger" style={styles.rowLabel}>
           Log out
+        </Text>
+      </Pressable>
+
+      <View style={styles.spacer} />
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Delete account"
+        style={styles.row}
+        onPress={() => router.push('/settings/delete-account')}
+      >
+        <Feather name="trash-2" size={18} color={colors.danger} />
+        <Text variant="body" color="danger" style={styles.rowLabel}>
+          Delete account
         </Text>
       </Pressable>
 
@@ -77,6 +96,9 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     flex: 1,
+  },
+  spacer: {
+    height: space.xl,
   },
   footer: {
     marginTop: 'auto',

@@ -36,6 +36,10 @@ export const meSchema = z.object({
   email: z.string(),
   profileImage: z.string().nullable(),
   createdAt: z.string(),
+  /** Set once the owner has requested deletion; null on a normal account. */
+  deletionRequestedAt: z.string().nullable(),
+  /** When the purge becomes eligible to destroy the account for good. */
+  purgeAt: z.string().nullable(),
 });
 export type Me = z.infer<typeof meSchema>;
 

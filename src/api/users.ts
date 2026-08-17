@@ -140,6 +140,37 @@ export function useUpdateProfile() {
 }
 
 /**
+ * Re-verifies the password server-side: a stolen access token is valid for up
+ * to 15 minutes and must never be enough on its own to destroy an account.
+ * A wrong password is a 401 and changes nothing.
+ */
+export function requestAccountDeletion(password: string): Promise<void> {
+  return request('/users/me', { method: 'DELETE', body: { password } });
+}
+
+export function restoreAccount(): Promise<void> {
+  return request('/users/me/restore', { method: 'POST' });
+}
+
+export function useRequestAccountDeletion() {
+  return useMutation({
+    mutationFn: (password: string) => requestAccountDeletion(password),
+    // No cache invalidation here: the caller signs the user out right after
+    // a successful request, and signOut already calls queryClient.clear().
+  });
+}
+
+export function useRestoreAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => restoreAccount(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.me });
+    },
+  });
+}
+
+/**
  * Follow is idempotent from the caller's side: the server answers 409 when
  * the follow already exists, which means the intent is already satisfied.
  */
