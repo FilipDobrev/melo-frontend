@@ -49,8 +49,6 @@ export default function SettingsScreen() {
         </Text>
       </Pressable>
 
-      <View style={styles.spacer} />
-
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Delete account"
@@ -96,9 +94,6 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     flex: 1,
-  },
-  spacer: {
-    height: space.xl,
   },
   footer: {
     marginTop: 'auto',
