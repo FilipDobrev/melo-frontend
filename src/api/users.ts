@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
 
 import { ApiError, request } from './client';
 import { keys } from './keys';
@@ -150,6 +151,16 @@ export function requestAccountDeletion(password: string): Promise<void> {
 
 export function restoreAccount(): Promise<void> {
   return request('/users/me/restore', { method: 'POST' });
+}
+
+/**
+ * The export is an opaque document we hand to the user as a file, so it is
+ * parsed as unknown rather than modelled - schema-ing it would mean
+ * mirroring every table here and breaking the download whenever the
+ * backend adds a field.
+ */
+export function fetchMyDataExport(): Promise<unknown> {
+  return request('/users/me/export', { schema: z.unknown() });
 }
 
 export function useRequestAccountDeletion() {

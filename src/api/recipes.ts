@@ -30,6 +30,8 @@ export interface RecipeInput {
   categorySlugs: string[];
   /** Either `preset:<slug>` or a storage key from the upload ticket. */
   imageKey?: string;
+  /** Optional on create/update; omitting it on update leaves it unchanged. */
+  servings?: number;
 }
 
 export function useRecipeSearch(search: string, categorySlugs: string[], sort: RecipeSort) {

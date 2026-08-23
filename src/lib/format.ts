@@ -93,3 +93,21 @@ export function formatMacros(n: Nutrition): string {
   const fat = Math.round(n.fat);
   return `${calories} KCAL · ${protein}G PROTEIN · ${carbs}G CARBS (${sugar}G SUGAR) · ${fat}G FAT`;
 }
+
+/** "1 portion" / "4 servings" - singular gets its own word, not "1 servings". */
+export function formatServings(servings: number): string {
+  return servings === 1 ? '1 portion' : `${servings} servings`;
+}
+
+/** Whole-recipe totals divided down. The server only reports totals, so this
+ *  is the single place that division happens. */
+export function perServing(nutrition: Nutrition, servings: number): Nutrition {
+  const divisor = servings < 1 ? 1 : servings;
+  return {
+    calories: nutrition.calories / divisor,
+    protein: nutrition.protein / divisor,
+    carbs: nutrition.carbs / divisor,
+    fat: nutrition.fat / divisor,
+    sugar: nutrition.sugar / divisor,
+  };
+}

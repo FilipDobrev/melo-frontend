@@ -110,6 +110,10 @@ export const recipeSummarySchema = z.object({
   owner: userSummarySchema,
   categories: z.array(recipeCategorySchema),
   imageUrl: z.string(),
+  // Whole-recipe count, always present. The server reports whole-recipe
+  // nutrition totals only - there is no `perServing` field; that division
+  // happens client-side, in lib/format.ts.
+  servings: z.number(),
 });
 export type RecipeSummary = z.infer<typeof recipeSummarySchema>;
 
@@ -138,6 +142,7 @@ export const savedRecipeSchema = z.object({
   imageUrl: z.string(),
   owner: userSummarySchema,
   categories: z.array(recipeCategorySchema),
+  servings: z.number(),
 });
 export type SavedRecipe = z.infer<typeof savedRecipeSchema>;
 
@@ -189,6 +194,7 @@ export const postSchema = z.object({
     title: z.string(),
     nutrition: nutritionSchema,
     isSaved: z.boolean(),
+    servings: z.number(),
   }),
   reactions: reactionSummarySchema,
   commentCount: z.number(),

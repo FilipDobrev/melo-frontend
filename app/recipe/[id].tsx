@@ -14,6 +14,7 @@ import { Button } from '../../src/ui/Button';
 import { Sheet } from '../../src/ui/Sheet';
 import { ConfirmDialog } from '../../src/ui/ConfirmDialog';
 import { colors, space } from '../../src/theme/theme';
+import { formatServings } from '../../src/lib/format';
 import { useCurrentUser } from '../../src/auth/AuthContext';
 import { useRecipe, useDeleteRecipe } from '../../src/api/recipes';
 import { CollectionPickerSheet } from '../../src/features/collections/CollectionPickerSheet';
@@ -85,6 +86,9 @@ export default function RecipeDetailScreen() {
               >
                 <Avatar uri={recipe.owner.profileImage} username={recipe.owner.username} size={28} />
                 <Text variant="strong">{recipe.owner.username}</Text>
+                <Text variant="bodySm" color="textMuted">
+                  {` · ${formatServings(recipe.servings)}`}
+                </Text>
               </Pressable>
 
               {recipe.categories.length > 0 && (
@@ -105,7 +109,7 @@ export default function RecipeDetailScreen() {
               </Text>
 
               <View style={styles.section}>
-                <NutritionPanel nutrition={recipe.nutrition} />
+                <NutritionPanel nutrition={recipe.nutrition} servings={recipe.servings} />
               </View>
 
               <View style={styles.section}>

@@ -1,12 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Readout, Text } from '../../ui/Text';
+import { SegmentedControl } from '../../ui/SegmentedControl';
 import { colors, macroColors, radius, space } from '../../theme/theme';
 import type { Nutrition } from '../../api/schemas';
+import { formatServings, perServing } from '../../lib/format';
 
 interface NutritionPanelProps {
   nutrition: Nutrition;
+  servings: number;
 }
+
+type ViewMode = 'whole' | 'perServing';
+
+const VIEW_MODE_OPTIONS: { value: ViewMode; label: string }[] = [
+  { value: 'whole', label: 'Whole recipe' },
+  { value: 'perServing', label: 'Per serving' },
+];
 
 const MACRO_COLUMNS: {
   key: 'protein' | 'carbs' | 'fat';
@@ -24,8 +34,13 @@ const ENERGY_PER_GRAM: Record<'protein' | 'carbs' | 'fat', number> = {
   fat: 9,
 };
 
-/** The kitchen-scale readout: totals for the whole recipe, not per serving. */
-export function NutritionPanel({ nutrition }: NutritionPanelProps) {
+/** The kitchen-scale readout: totals for the whole recipe, or divided per serving. */
+export function NutritionPanel({ nutrition, servings }: NutritionPanelProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>('perServing');
+
+  // The energy-split bar shows a *proportion*, not an amount - dividing every
+  // term by the same servings count leaves those proportions unchanged, so it
+  // always reads from the whole-recipe totals regardless of the toggle above.
   const energyByMacro = {
     protein: nutrition.protein * ENERGY_PER_GRAM.protein,
     carbs: nutrition.carbs * ENERGY_PER_GRAM.carbs,
@@ -40,15 +55,33 @@ export function NutritionPanel({ nutrition }: NutritionPanelProps) {
         `${Math.round((energyByMacro.fat / totalEnergy) * 100)}% fat`
       : 'No macro data';
 
+  // Whole-recipe and per-serving are the same number when servings === 1, so
+  // the figures shown are always the raw totals in that case.
+  const displayedNutrition =
+    servings > 1 && viewMode === 'perServing' ? perServing(nutrition, servings) : nutrition;
+
   return (
     <View>
-      <Text variant="label" color="textMuted" style={styles.eyebrow}>
-        WHOLE RECIPE
-      </Text>
+      {servings > 1 ? (
+        <View style={styles.eyebrow}>
+          <SegmentedControl
+            options={VIEW_MODE_OPTIONS}
+            value={viewMode}
+            onChange={(value) => setViewMode(value as ViewMode)}
+          />
+          <Text variant="label" color="textMuted" style={styles.servingsLabel}>
+            {formatServings(servings)}
+          </Text>
+        </View>
+      ) : (
+        <Text variant="label" color="textMuted" style={styles.eyebrow}>
+          PER PORTION
+        </Text>
+      )}
       <View style={styles.panel}>
         <View style={styles.headline}>
           <View style={styles.calorieBlock}>
-            <Readout variant="readoutXl">{Math.round(nutrition.calories)}</Readout>
+            <Readout variant="readoutXl">{Math.round(displayedNutrition.calories)}</Readout>
             <Text variant="label" color="textMuted" style={styles.headlineLabel}>
               KCAL
             </Text>
@@ -84,7 +117,7 @@ export function NutritionPanel({ nutrition }: NutritionPanelProps) {
             <React.Fragment key={key}>
               {index > 0 && <View style={styles.macroRule} />}
               <View style={styles.macroColumn}>
-                <Readout variant="readoutLg">{Math.round(nutrition[key])} G</Readout>
+                <Readout variant="readoutLg">{Math.round(displayedNutrition[key])} G</Readout>
                 <View style={styles.macroLabelRow}>
                   <View style={[styles.macroDot, { backgroundColor: color }]} />
                   <Text variant="label" color="textMuted" numberOfLines={1}>
@@ -103,7 +136,7 @@ export function NutritionPanel({ nutrition }: NutritionPanelProps) {
                 */}
                 {key === 'carbs' ? (
                   <Text variant="readoutSm" color="textMuted" numberOfLines={1}>
-                    {`${Math.round(nutrition.sugar)} G SUGAR`}
+                    {`${Math.round(displayedNutrition.sugar)} G SUGAR`}
                   </Text>
                 ) : (
                   <Text variant="readoutSm" numberOfLines={1} accessible={false}>
@@ -123,6 +156,9 @@ const styles = StyleSheet.create({
   eyebrow: {
     marginHorizontal: space.lg,
     marginBottom: space.sm,
+  },
+  servingsLabel: {
+    marginTop: space.xs,
   },
   panel: {
     backgroundColor: colors.slab,

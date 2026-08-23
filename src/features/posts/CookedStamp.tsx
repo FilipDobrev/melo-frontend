@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { Post } from '../../api/schemas';
-import { formatMacros } from '../../lib/format';
+import { formatMacros, formatServings } from '../../lib/format';
 import { colors, radius, space } from '../../theme/theme';
 import { Readout, Text } from '../../ui/Text';
 import { SaveRecipeButton } from '../recipes/SaveRecipeButton';
@@ -21,7 +21,7 @@ export function CookedStamp({ recipe }: CookedStampProps) {
     <View style={styles.slab}>
       <Pressable onPress={openRecipe} accessibilityRole="link" accessibilityLabel={`View recipe: ${recipe.title}`}>
         <Text variant="label" color="deep">
-          COOKED
+          {`COOKED · ${formatServings(recipe.servings)}`}
         </Text>
       </Pressable>
       <View style={styles.titleRow}>
@@ -39,6 +39,13 @@ export function CookedStamp({ recipe }: CookedStampProps) {
       </View>
       <Pressable onPress={openRecipe} accessibilityRole="link" accessibilityLabel={`View recipe: ${recipe.title}`}>
         <Readout variant="readoutSm" color="deep">
+          {/* Whole-recipe totals, not per-serving: the per-serving toggle lives on
+              the recipe's own NutritionPanel, and a feed card with no visible
+              control would leave viewers unsure which figures they're seeing.
+              Servings rides in the eyebrow above rather than here - appended to
+              this line it pushed the worst case to 76 characters against a
+              73-character budget, wrapping the readout and making card heights
+              inconsistent. */}
           {formatMacros(recipe.nutrition)}
         </Readout>
       </Pressable>

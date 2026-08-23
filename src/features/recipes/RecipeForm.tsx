@@ -38,6 +38,7 @@ interface FormErrors {
   description?: string;
   instructions?: string;
   ingredients?: string;
+  servings?: string;
 }
 
 function ingredientKey(productId: string): string {
@@ -46,6 +47,9 @@ function ingredientKey(productId: string): string {
 
 export function RecipeForm({ initial, onSubmit, submitLabel, submitting, error }: RecipeFormProps) {
   const [title, setTitle] = useState(initial?.title ?? '');
+  const [servings, setServings] = useState(
+    initial?.servings !== undefined ? String(initial.servings) : '1',
+  );
   const [description, setDescription] = useState(initial?.description ?? '');
   const [instructions, setInstructions] = useState(initial?.instructions ?? '');
   const [categorySlugs, setCategorySlugs] = useState<string[]>(
@@ -88,7 +92,7 @@ export function RecipeForm({ initial, onSubmit, submitLabel, submitting, error }
     setIngredients((rows) => [...rows, { key: ingredientKey(product.id), product, quantity: '', unit: 'GRAM' }]);
   }
 
-  function validate(): RecipeInput['ingredients'] | null {
+  function validate(): { ingredients: RecipeInput['ingredients']; servings: number } | null {
     const nextErrors: FormErrors = {};
     const trimmedTitle = title.trim();
     const trimmedDescription = description.trim();
@@ -97,6 +101,16 @@ export function RecipeForm({ initial, onSubmit, submitLabel, submitting, error }
     if (trimmedTitle.length < 1 || trimmedTitle.length > 150) {
       nextErrors.title = 'Title must be 1-150 characters.';
     }
+
+    const parsedServings = Number(servings);
+    if (
+      !Number.isInteger(parsedServings) ||
+      parsedServings < 1 ||
+      parsedServings > 100
+    ) {
+      nextErrors.servings = 'Servings must be a whole number between 1 and 100.';
+    }
+
     if (trimmedDescription.length < 1 || trimmedDescription.length > 2000) {
       nextErrors.description = 'Description must be 1-2000 characters.';
     }
@@ -125,7 +139,7 @@ export function RecipeForm({ initial, onSubmit, submitLabel, submitting, error }
     setIngredientErrorKeys(badKeys);
 
     if (Object.keys(nextErrors).length > 0) return null;
-    return parsedIngredients;
+    return { ingredients: parsedIngredients, servings: parsedServings };
   }
 
   async function resolveImageKey(): Promise<string | undefined> {
@@ -141,8 +155,8 @@ export function RecipeForm({ initial, onSubmit, submitLabel, submitting, error }
   }
 
   async function handleSubmit() {
-    const parsedIngredients = validate();
-    if (!parsedIngredients) return;
+    const parsed = validate();
+    if (!parsed) return;
 
     const imageKey = await resolveImageKey();
 
@@ -151,7 +165,8 @@ export function RecipeForm({ initial, onSubmit, submitLabel, submitting, error }
       description: description.trim(),
       instructions: instructions.trim(),
       categorySlugs,
-      ingredients: parsedIngredients,
+      ingredients: parsed.ingredients,
+      servings: parsed.servings,
       ...(imageKey ? { imageKey } : {}),
     });
   }
@@ -172,6 +187,14 @@ export function RecipeForm({ initial, onSubmit, submitLabel, submitting, error }
       <RecipeImagePicker value={image} onChange={setImage} />
 
       <Field label="Title" value={title} onChangeText={setTitle} error={errors.title} />
+      <Field
+        label="Servings"
+        value={servings}
+        onChangeText={setServings}
+        error={errors.servings}
+        hint="How many people does this make?"
+        keyboardType="number-pad"
+      />
       <Field
         label="Description"
         value={description}

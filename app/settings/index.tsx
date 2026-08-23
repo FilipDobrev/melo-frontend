@@ -4,8 +4,10 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useAuth } from '../../src/auth/AuthContext';
-import { API_URL } from '../../src/api/client';
+import { API_URL, ApiError, errorMessage } from '../../src/api/client';
+import { fetchMyDataExport } from '../../src/api/users';
 import { AccountDeletionBanner } from '../../src/features/users/AccountDeletionBanner';
+import { saveDataExport } from '../../src/lib/export';
 import { ConfirmDialog } from '../../src/ui/ConfirmDialog';
 import { Screen } from '../../src/ui/Screen';
 import { ScreenHeader } from '../../src/ui/ScreenHeader';
@@ -15,6 +17,28 @@ import { colors, space } from '../../src/theme/theme';
 export default function SettingsScreen() {
   const { signOut } = useAuth();
   const [isLogoutOpen, setLogoutOpen] = useState(false);
+  const [isExporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  async function handleExport() {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const doc = await fetchMyDataExport();
+      await saveDataExport(doc);
+    } catch (error) {
+      // The endpoint is capped at 3 requests/hour (API.md), far tighter than
+      // the "wait a moment" 429 message errorMessage() gives every other
+      // caller, so this screen needs its own wording for it.
+      if (error instanceof ApiError && error.status === 429) {
+        setExportError('You can export your data 3 times an hour. Try again later.');
+      } else {
+        setExportError(errorMessage(error));
+      }
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <Screen edges={['top']}>
@@ -36,6 +60,25 @@ export default function SettingsScreen() {
         </Text>
         <Feather name="chevron-right" size={18} color={colors.textFaint} />
       </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={isExporting ? 'Preparing your data' : 'Download my data'}
+        accessibilityState={{ disabled: isExporting }}
+        style={styles.row}
+        onPress={handleExport}
+        disabled={isExporting}
+      >
+        <Feather name="download" size={18} color={colors.text} />
+        <Text variant="body" style={styles.rowLabel}>
+          {isExporting ? 'Preparing your data…' : 'Download my data'}
+        </Text>
+      </Pressable>
+      {exportError && (
+        <Text variant="bodySm" color="danger" style={styles.exportError}>
+          {exportError}
+        </Text>
+      )}
 
       <Pressable
         accessibilityRole="button"
@@ -94,6 +137,10 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     flex: 1,
+  },
+  exportError: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.sm,
   },
   footer: {
     marginTop: 'auto',
