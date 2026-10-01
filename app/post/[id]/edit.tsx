@@ -129,7 +129,7 @@ export default function EditPostScreen() {
   }
 
   async function handleSave() {
-    if (!post.data || !recipe || images.length === 0 || isSaving) return;
+    if (!post.data || !recipe || isSaving) return;
     setSubmitError(null);
 
     try {
@@ -211,7 +211,7 @@ export default function EditPostScreen() {
             title={saveButtonTitle}
             size="md"
             onPress={handleSave}
-            disabled={images.length === 0 || isSaving}
+            disabled={isSaving}
             loading={updatePost.isPending}
           />
         }

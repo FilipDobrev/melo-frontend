@@ -100,15 +100,19 @@ export default function ComposeScreen() {
   }
 
   async function handleSubmit() {
-    if (!recipeId || images.length === 0 || isSubmitting) return;
+    if (!recipeId || isSubmitting) return;
     setSubmitError(null);
 
     try {
-      setProgress({ done: 0, total: images.length });
-      const imageKeys = await uploadImages(images, requestPostImageUpload, (done, total) =>
-        setProgress({ done, total }),
-      );
-      setProgress(null);
+      // A post may have no photos; the recipe's image is shown instead, so there is nothing to upload.
+      let imageKeys: string[] = [];
+      if (images.length > 0) {
+        setProgress({ done: 0, total: images.length });
+        imageKeys = await uploadImages(images, requestPostImageUpload, (done, total) =>
+          setProgress({ done, total }),
+        );
+        setProgress(null);
+      }
 
       await createPost.mutateAsync({
         recipeId,
@@ -134,7 +138,7 @@ export default function ComposeScreen() {
             title={postButtonTitle}
             size="md"
             onPress={handleSubmit}
-            disabled={images.length === 0 || isSubmitting}
+            disabled={isSubmitting}
             loading={createPost.isPending}
           />
         }

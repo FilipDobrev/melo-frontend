@@ -195,6 +195,8 @@ export const postSchema = z.object({
     nutrition: nutritionSchema,
     isSaved: z.boolean(),
     servings: z.number(),
+    // The recipe's own image. Shown only when the post has no images of its own.
+    imageUrl: z.string(),
   }),
   reactions: reactionSummarySchema,
   commentCount: z.number(),

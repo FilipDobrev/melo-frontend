@@ -9,6 +9,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import type { Post } from '../../api/schemas';
 import { colors, radius, space } from '../../theme/theme';
 import { useContentWidth } from '../../theme/layout';
 import { IconButton } from '../../ui/IconButton';
@@ -17,6 +18,16 @@ import { Readout } from '../../ui/Text';
 interface PostImage {
   id: string;
   url: string;
+}
+
+/**
+ * What to render for a post: its own photos, or the recipe's image as a single picture when it
+ * has none. The recipe image belongs to the recipe and is only read here for display; it must
+ * never be put into an editable image list or sent back as an image key.
+ */
+export function postDisplayImages(post: Post): PostImage[] {
+  if (post.images.length > 0) return post.images;
+  return [{ id: `recipe-${post.recipe.id}`, url: post.recipe.imageUrl }];
 }
 
 interface PostImageCarouselProps {

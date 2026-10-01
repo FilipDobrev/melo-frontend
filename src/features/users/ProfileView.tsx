@@ -18,6 +18,7 @@ import { StateView } from '../../ui/StateView';
 import { colors, radius, space } from '../../theme/theme';
 import { useContentWidth } from '../../theme/layout';
 import { FollowButton } from './FollowButton';
+import { postDisplayImages } from '../posts/PostImageCarousel';
 
 interface ProfileViewProps {
   userId: string;
@@ -181,7 +182,8 @@ function StatBlock({
 }
 
 const PostCell = React.memo(function PostCell({ post, size }: { post: Post; size: number }) {
-  const firstImage = post.images[0];
+  const displayImages = postDisplayImages(post);
+  const firstImage = displayImages[0];
   return (
     <Pressable
       accessibilityRole="button"
@@ -195,7 +197,7 @@ const PostCell = React.memo(function PostCell({ post, size }: { post: Post; size
         cachePolicy="memory-disk"
         style={[styles.cellImage, { backgroundColor: colors.slab }]}
       />
-      {post.images.length > 1 && (
+      {displayImages.length > 1 && (
         <View style={styles.layersBadge}>
           <Feather name="layers" size={14} color={colors.textInverse} />
         </View>

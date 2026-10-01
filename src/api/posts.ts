@@ -167,9 +167,9 @@ export function useDeletePost() {
 }
 
 /**
- * The server refuses to delete the last image on a post (400), so that
- * ApiError is left to propagate rather than swallowed here - the UI surfaces
- * its message.
+ * Any image can be deleted, including the last one: a post may have none, and
+ * then shows its recipe's image. An ApiError is left to propagate rather than
+ * swallowed here - the UI surfaces its message.
  */
 export function useDeletePostImage(postId: string) {
   const queryClient = useQueryClient();

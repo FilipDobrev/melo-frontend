@@ -10,7 +10,7 @@ import { Avatar } from '../../ui/Avatar';
 import { IconButton } from '../../ui/IconButton';
 import { Readout, Text } from '../../ui/Text';
 import { CookedStamp } from './CookedStamp';
-import { PostImageCarousel } from './PostImageCarousel';
+import { PostImageCarousel, postDisplayImages } from './PostImageCarousel';
 import { ReactionBar } from './ReactionBar';
 
 interface PostCardProps {
@@ -88,7 +88,7 @@ function PostCardBase({ post, variant = 'feed', onOpenComments, onOpenActions }:
 
       <View>
         <PostImageCarousel
-          images={post.images}
+          images={postDisplayImages(post)}
           index={imageIndex}
           onIndexChange={setImageIndex}
           onDoubleTap={handleDoubleTap}
