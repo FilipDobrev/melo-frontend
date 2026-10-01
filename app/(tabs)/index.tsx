@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
@@ -24,6 +25,7 @@ export default function FeedScreen() {
   return (
     <Screen edges={['top']}>
       <View style={styles.header}>
+        <Image source={require('../../assets/logo.png')} style={styles.logo} accessible={false} />
         <Text variant="displayLg">Melo</Text>
       </View>
       <StateView
@@ -88,6 +90,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ground,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
+  },
+  logo: {
+    width: 32,
+    height: 32,
+    marginRight: space.sm,
   },
   list: {
     flex: 1,

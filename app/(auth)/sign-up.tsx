@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
@@ -68,6 +69,7 @@ export default function SignUpScreen() {
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.top}>
+            <Image source={require('../../assets/logo.png')} style={styles.logo} accessibilityLabel="Melo logo" />
             <Text variant="displayXl">Melo</Text>
             <Text variant="bodyLg" color="textMuted">
               Cook it. Log it. Keep it.
@@ -159,6 +161,11 @@ const styles = StyleSheet.create({
   top: {
     marginTop: space.xxxl,
     gap: space.xs,
+  },
+  logo: {
+    width: 72,
+    height: 72,
+    marginBottom: space.sm,
   },
   form: {
     marginTop: space.xxl,
