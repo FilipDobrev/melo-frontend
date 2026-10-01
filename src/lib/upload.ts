@@ -8,15 +8,15 @@ const UPLOAD_CONTENT_TYPE = 'image/jpeg';
 // Mirrors the backend's limit in backend/src/services/storage.service.ts.
 // Downscaling should make this unreachable; asserting it catches a broken
 // prepareImageForUpload rather than silently uploading a rejected file.
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 
 /**
  * Uploads one local image and returns its storage key. The image is
  * downscaled and re-encoded first (see ./image.ts), both to shrink it and to
- * strip EXIF/GPS metadata. The presigned PUT signature covers `contentType`
- * and `contentLength`, so both must be measured from the prepared file that
- * is actually sent, never the original picker output — otherwise the bytes
- * PUT won't match what the signature covers and storage returns a 403.
+ * strip EXIF/GPS metadata. The backend signs both `contentType` and
+ * `contentLength` into the presigned URL, so both must come from the prepared
+ * file that is actually sent, never the original picker output; a mismatch
+ * makes storage return a 403.
  */
 export async function uploadImage(
   localUri: string,
